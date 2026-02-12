@@ -1,0 +1,8 @@
+export type ErrorCode =
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'TOO_MANY_REQUESTS'
+  | 'VALIDATION_ERROR'
+  | 'INTERNAL_ERROR';

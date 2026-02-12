@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+coverage/
+.vscode/
+.idea/
+.DS_Store
+*.log
+.env*
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+backend/prisma/dev.db
+storage/attachments/

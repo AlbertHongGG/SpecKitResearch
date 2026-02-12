@@ -1,0 +1,21 @@
+{
+  "name": "activity-management-platform",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run start:dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm --workspace backend run start:dev\" \"npm --workspace frontend run dev\"",
+    "lint": "npm --workspace backend run lint && npm --workspace frontend run lint",
+    "format": "npm --workspace backend run format && npm --workspace frontend run format",
+    "test": "npm --workspace backend run test && npm --workspace frontend run test",
+    "test:backend": "npm --workspace backend run test",
+    "test:frontend": "npm --workspace frontend run test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,0 +1,13 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+
+# lockfiles
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# prisma migrations can be noisy
+backend/prisma/migrations/

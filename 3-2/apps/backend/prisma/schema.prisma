@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+
+  url = env("DATABASE_URL")
+}
+
+// NOTE: SQLite connector does not support Prisma enums.
+// We model these as String fields and validate at the API layer.
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  platformRole            PlatformRole?
+  orgMemberships          OrganizationMembership[]
+  projectMemberships      ProjectMembership[]
+  createdOrganizations    Organization[]           @relation("OrgCreatedBy")
+  sentOrganizationInvites OrganizationInvite[]     @relation("OrgInviteInvitedBy")
+  createdProjects         Project[]                @relation("ProjectCreatedBy")
+  createdWorkflows        Workflow[]               @relation("WorkflowCreatedBy")
+  reportedIssues          Issue[]                  @relation("IssueReporter")
+  assignedIssues          Issue[]                  @relation("IssueAssignee")
+  authoredComments        IssueComment[]           @relation("CommentAuthor")
+  sessions                Session[]                @relation("SessionUser")
+}
+
+model PlatformRole {
+  userId String @id
+  role   String
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  plan            String   @default("free")
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  createdByUserId String
+  createdByUser   User     @relation("OrgCreatedBy", fields: [createdByUserId], references: [id])
+
+  memberships OrganizationMembership[]
+  invites     OrganizationInvite[]
+  projects    Project[]
+  auditLogs   AuditLog[]
+}
+
+model OrganizationMembership {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  orgRole        String
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+}
+
+model OrganizationInvite {
+  id              String    @id @default(cuid())
+  organizationId  String
+  email           String
+  token           String    @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  invitedByUserId String
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  invitedByUser User         @relation("OrgInviteInvitedBy", fields: [invitedByUserId], references: [id])
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  organizationId  String
+  key             String
+  name            String
+  type            String
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  createdByUserId String
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  createdByUser User         @relation("ProjectCreatedBy", fields: [createdByUserId], references: [id])
+
+  memberships  ProjectMembership[]
+  workflows    Workflow[]
+  issueTypes   ProjectIssueType[]
+  issueCounter ProjectIssueCounter?
+  sprints      Sprint[]
+  issues       Issue[]
+  auditLogs    AuditLog[]
+
+  @@unique([organizationId, key])
+}
+
+model ProjectMembership {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  projectRole String
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
+}
+
+model ProjectIssueType {
+  id        String  @id @default(cuid())
+  projectId String
+  type      String
+  isEnabled Boolean @default(true)
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, type])
+}
+
+model Workflow {
+  id              String   @id @default(cuid())
+  projectId       String
+  name            String
+  version         Int
+  isActive        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  createdByUserId String
+
+  project       Project @relation(fields: [projectId], references: [id])
+  createdByUser User    @relation("WorkflowCreatedBy", fields: [createdByUserId], references: [id])
+
+  statuses    WorkflowStatus[]
+  transitions WorkflowTransition[]
+}
+
+model WorkflowStatus {
+  id         String @id @default(cuid())
+  workflowId String
+  key        String
+  name       String
+  position   Int
+
+  workflow Workflow @relation(fields: [workflowId], references: [id])
+
+  transitionsFrom WorkflowTransition[] @relation("FromStatus")
+  transitionsTo   WorkflowTransition[] @relation("ToStatus")
+  issues          Issue[]              @relation("IssueStatus")
+
+  @@unique([workflowId, key])
+}
+
+model WorkflowTransition {
+  id           String @id @default(cuid())
+  workflowId   String
+  fromStatusId String
+  toStatusId   String
+
+  workflow   Workflow       @relation(fields: [workflowId], references: [id])
+  fromStatus WorkflowStatus @relation("FromStatus", fields: [fromStatusId], references: [id])
+  toStatus   WorkflowStatus @relation("ToStatus", fields: [toStatusId], references: [id])
+
+  @@unique([workflowId, fromStatusId, toStatusId])
+}
+
+model Sprint {
+  id        String    @id @default(cuid())
+  projectId String
+  name      String
+  goal      String?
+  startDate DateTime?
+  endDate   DateTime?
+  status    String    @default("planned")
+
+  project Project @relation(fields: [projectId], references: [id])
+  issues  Issue[]
+}
+
+model Issue {
+  id             String    @id @default(cuid())
+  projectId      String
+  issueKey       String
+  type           String
+  title          String
+  description    String?
+  priority       String
+  statusId       String
+  reporterUserId String
+  assigneeUserId String?
+  dueDate        DateTime?
+  estimate       Float?
+  sprintId       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project  Project        @relation(fields: [projectId], references: [id])
+  status   WorkflowStatus @relation("IssueStatus", fields: [statusId], references: [id])
+  reporter User           @relation("IssueReporter", fields: [reporterUserId], references: [id])
+  assignee User?          @relation("IssueAssignee", fields: [assigneeUserId], references: [id])
+  sprint   Sprint?        @relation(fields: [sprintId], references: [id])
+
+  labels           IssueLabel[]
+  comments         IssueComment[]
+  epicLinksAsEpic  IssueEpicLink[] @relation("Epic")
+  epicLinksAsChild IssueEpicLink[] @relation("Child")
+
+  @@unique([projectId, issueKey])
+}
+
+model IssueLabel {
+  id      String @id @default(cuid())
+  issueId String
+  label   String
+
+  issue Issue @relation(fields: [issueId], references: [id])
+
+  @@unique([issueId, label])
+}
+
+model IssueEpicLink {
+  id           String @id @default(cuid())
+  epicIssueId  String
+  childIssueId String
+  epicIssue    Issue  @relation("Epic", fields: [epicIssueId], references: [id])
+  childIssue   Issue  @relation("Child", fields: [childIssueId], references: [id])
+
+  @@unique([epicIssueId, childIssueId])
+}
+
+model IssueComment {
+  id           String   @id @default(cuid())
+  issueId      String
+  authorUserId String
+  body         String
+  createdAt    DateTime @default(now())
+
+  issue  Issue @relation(fields: [issueId], references: [id])
+  author User  @relation("CommentAuthor", fields: [authorUserId], references: [id])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  projectId      String?
+  actorUserId    String?
+  actorEmail     String
+  action         String
+  entityType     String
+  entityId       String
+  beforeJson     String?
+  afterJson      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  project      Project?      @relation(fields: [projectId], references: [id])
+}
+
+model ProjectIssueCounter {
+  projectId  String @id
+  nextNumber Int
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  csrfToken String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation("SessionUser", fields: [userId], references: [id])
+}

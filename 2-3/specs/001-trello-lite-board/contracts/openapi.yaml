@@ -1,0 +1,1290 @@
+openapi: 3.0.3
+info:
+  title: Trello Lite API
+  version: 0.1.0
+  description: |
+    Multi-user collaborative task board (Trello Lite). REST API contracts.
+    Auth uses cookie-based session with short-lived access + refresh (server can revoke refresh).
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: Auth
+  - name: Projects
+  - name: Membership
+  - name: Boards
+  - name: Lists
+  - name: Tasks
+  - name: Comments
+  - name: Activity
+  - name: Realtime
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Refresh cookie and related cookies (HttpOnly)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh session
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Rotated refresh cookie (HttpOnly)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (revoke refresh)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects visible to current user (membership) + invitations
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyProjectsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Projects]
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /projects/{projectId}:
+    get:
+      tags: [Projects]
+      summary: Get project
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Projects]
+      summary: Update project (Owner only)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /projects/{projectId}/archive:
+    post:
+      tags: [Projects]
+      summary: Archive project (Owner only)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/invitations:
+    get:
+      tags: [Membership]
+      summary: List invitations (Owner/Admin)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invitation'
+                required: [invitations]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Membership]
+      summary: Create invitation (Owner/Admin)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /invitations/{invitationId}/accept:
+    post:
+      tags: [Membership]
+      summary: Accept invitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /invitations/{invitationId}/reject:
+    post:
+      tags: [Membership]
+      summary: Reject invitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/members:
+    get:
+      tags: [Membership]
+      summary: List project members
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Membership'
+                required: [members]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Membership]
+      summary: Update member role (Owner/Admin)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRoleRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+    delete:
+      tags: [Membership]
+      summary: Remove member (Owner)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: userId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /projects/{projectId}/boards:
+    get:
+      tags: [Boards]
+      summary: List boards for project
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  boards:
+                    type: array
+                    items: { $ref: '#/components/schemas/Board' }
+                required: [boards]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Boards]
+      summary: Create board (Owner/Admin)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBoardRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /projects/{projectId}/boards/reorder:
+    post:
+      tags: [Boards]
+      summary: Reorder boards (Owner/Admin)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderBoardsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  boards:
+                    type: array
+                    items: { $ref: '#/components/schemas/Board' }
+                required: [boards]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /boards/{boardId}/archive:
+    post:
+      tags: [Boards]
+      summary: Archive board (Owner/Admin)
+      parameters:
+        - name: boardId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Board' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /boards/{boardId}/lists:
+    get:
+      tags: [Lists]
+      summary: List lists for board
+      parameters:
+        - name: boardId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lists:
+                    type: array
+                    items: { $ref: '#/components/schemas/List' }
+                required: [lists]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Lists]
+      summary: Create list (Owner/Admin)
+      parameters:
+        - name: boardId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateListRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/List' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /boards/{boardId}/lists/reorder:
+    post:
+      tags: [Lists]
+      summary: Reorder lists (Owner/Admin)
+      parameters:
+        - name: boardId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderListsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lists:
+                    type: array
+                    items: { $ref: '#/components/schemas/List' }
+                required: [lists]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /lists/{listId}/wip:
+    patch:
+      tags: [Lists]
+      summary: Update WIP settings (Owner/Admin)
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateWipRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/List' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /lists/{listId}/archive:
+    post:
+      tags: [Lists]
+      summary: Archive list (Owner/Admin)
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/List' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /lists/{listId}/tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks in list (ordered by position)
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+                required: [tasks]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Tasks]
+      summary: Create task (Member+)
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /tasks/{taskId}:
+    get:
+      tags: [Tasks]
+      summary: Get task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Tasks]
+      summary: Update task (Member+; optimistic concurrency)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTaskRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /tasks/{taskId}/move:
+    post:
+      tags: [Tasks]
+      summary: Move/reorder task (Member+; server authoritative ordering)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MoveTaskRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MoveTaskResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /tasks/{taskId}/status:
+    post:
+      tags: [Tasks]
+      summary: Update task status (Member+)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTaskStatusRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /tasks/{taskId}/archive:
+    post:
+      tags: [Tasks]
+      summary: Archive task (Member+)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArchiveTaskRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{taskId}/comments:
+    get:
+      tags: [Comments]
+      summary: List comments for task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Comment' }
+                required: [comments]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Comments]
+      summary: Add comment (Owner/Admin/Member)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddCommentRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /projects/{projectId}/activity:
+    get:
+      tags: [Activity]
+      summary: Get activity log (append-only)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /projects/{projectId}/snapshot:
+    get:
+      tags: [Projects]
+      summary: Get board snapshot for reconnect/backfill
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: boardId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SnapshotResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /projects/{projectId}/events:
+    get:
+      tags: [Realtime]
+      summary: Server-Sent Events stream for realtime updates
+      description: |
+        SSE stream of events for a project. Clients should reconnect using Last-Event-ID.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: after
+          in: query
+          required: false
+          schema: { type: string }
+          description: Optional cursor to backfill events after a given eventId.
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Not authorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Version conflict / ordering conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ConflictResponse' }
+    UnprocessableEntity:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+      required: [success]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+          required: [code, message]
+      required: [error]
+
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            error:
+              type: object
+              properties:
+                fieldErrors:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items: { type: string }
+
+    ConflictResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            latest:
+              description: Latest representation of the entity
+              oneOf:
+                - $ref: '#/components/schemas/Task'
+                - $ref: '#/components/schemas/Project'
+
+    RegisterRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        displayName: { type: string }
+      required: [email, password]
+
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      required: [email, password]
+
+    AuthUserResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        session:
+          type: object
+          properties:
+            expiresAt: { type: string, format: date-time }
+          required: [expiresAt]
+      required: [user, session]
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, email, displayName]
+
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerId: { type: string, format: uuid }
+        visibility: { type: string, enum: [private, shared] }
+        status: { type: string, enum: [active, archived] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, version, name, ownerId, visibility, status]
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        visibility: { type: string, enum: [private, shared] }
+      required: [name]
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        expectedVersion: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        visibility: { type: string, enum: [private, shared] }
+      required: [expectedVersion]
+
+    MyProjectsResponse:
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            type: object
+            properties:
+              project: { $ref: '#/components/schemas/Project' }
+              role: { type: string, enum: [owner, admin, member, viewer] }
+            required: [project, role]
+        invitations:
+          type: array
+          items: { $ref: '#/components/schemas/Invitation' }
+      required: [projects, invitations]
+
+    Invitation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        invitedRole: { type: string, enum: [admin, member, viewer] }
+        status: { type: string, enum: [pending, accepted, rejected, revoked] }
+        createdAt: { type: string, format: date-time }
+        respondedAt: { type: string, format: date-time, nullable: true }
+      required: [id, projectId, email, invitedRole, status, createdAt]
+
+    CreateInvitationRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        invitedRole: { type: string, enum: [admin, member, viewer] }
+      required: [email, invitedRole]
+
+    Membership:
+      type: object
+      properties:
+        projectId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        version: { type: integer }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        joinedAt: { type: string, format: date-time }
+      required: [projectId, userId, version, role, joinedAt]
+
+    UpdateMemberRoleRequest:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+      required: [userId, role]
+
+    Board:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        version: { type: integer }
+        name: { type: string }
+        order: { type: number }
+        status: { type: string, enum: [active, archived] }
+      required: [id, projectId, version, name, order, status]
+
+    CreateBoardRequest:
+      type: object
+      properties:
+        name: { type: string }
+      required: [name]
+
+    ReorderBoardsRequest:
+      type: object
+      properties:
+        orderedBoardIds:
+          type: array
+          items: { type: string, format: uuid }
+      required: [orderedBoardIds]
+
+    List:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        boardId: { type: string, format: uuid }
+        version: { type: integer }
+        title: { type: string }
+        order: { type: number }
+        status: { type: string, enum: [active, archived] }
+        isWipLimited: { type: boolean }
+        wipLimit: { type: integer, nullable: true }
+      required: [id, boardId, version, title, order, status, isWipLimited]
+
+    CreateListRequest:
+      type: object
+      properties:
+        title: { type: string }
+      required: [title]
+
+    ReorderListsRequest:
+      type: object
+      properties:
+        orderedListIds:
+          type: array
+          items: { type: string, format: uuid }
+      required: [orderedListIds]
+
+    UpdateWipRequest:
+      type: object
+      properties:
+        isWipLimited: { type: boolean }
+        wipLimit: { type: integer }
+      required: [isWipLimited]
+
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        boardId: { type: string, format: uuid }
+        listId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        priority: { type: integer, nullable: true }
+        position: { type: string }
+        status: { type: string, enum: [open, in_progress, blocked, done, archived] }
+        version: { type: integer }
+        createdByUserId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        assigneeIds:
+          type: array
+          items: { type: string, format: uuid }
+      required: [id, projectId, boardId, listId, title, position, status, version]
+
+    CreateTaskRequest:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        dueDate: { type: string, format: date }
+        priority: { type: integer }
+        assigneeIds:
+          type: array
+          items: { type: string, format: uuid }
+        idempotencyKey:
+          type: string
+          description: Optional idempotency key to prevent duplicate submits
+      required: [title]
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        expectedVersion: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        dueDate: { type: string, format: date }
+        priority: { type: integer }
+        assigneeIds:
+          type: array
+          items: { type: string, format: uuid }
+      required: [expectedVersion]
+
+    MoveTaskRequest:
+      type: object
+      properties:
+        expectedVersion: { type: integer }
+        toListId: { type: string, format: uuid }
+        beforeTaskId: { type: string, format: uuid, nullable: true }
+        afterTaskId: { type: string, format: uuid, nullable: true }
+        wipOverrideReason: { type: string, nullable: true }
+      required: [expectedVersion, toListId]
+
+    MoveTaskResponse:
+      type: object
+      properties:
+        task: { $ref: '#/components/schemas/Task' }
+        authoritativeOrder:
+          type: object
+          properties:
+            listId: { type: string, format: uuid }
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  taskId: { type: string, format: uuid }
+                  position: { type: string }
+                required: [taskId, position]
+          required: [listId, tasks]
+      required: [task, authoritativeOrder]
+
+    UpdateTaskStatusRequest:
+      type: object
+      properties:
+        expectedVersion: { type: integer }
+        status: { type: string, enum: [open, in_progress, blocked, done, archived] }
+      required: [expectedVersion, status]
+
+    ArchiveTaskRequest:
+      type: object
+      properties:
+        expectedVersion: { type: integer }
+      required: [expectedVersion]
+
+    Comment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        authorId: { type: string, format: uuid }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, taskId, authorId, content, createdAt]
+
+    AddCommentRequest:
+      type: object
+      properties:
+        content: { type: string }
+      required: [content]
+
+    ActivityEvent:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string, format: uuid }
+        actorId: { type: string, format: uuid }
+        entityType: { type: string }
+        entityId: { type: string }
+        action: { type: string }
+        timestamp: { type: string, format: date-time }
+        metadata: { type: object, additionalProperties: true }
+      required: [id, projectId, actorId, entityType, entityId, action, timestamp]
+
+    ActivityResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityEvent' }
+        nextCursor: { type: string, nullable: true }
+      required: [events]
+
+    SnapshotResponse:
+      type: object
+      properties:
+        snapshotGeneratedAt: { type: string, format: date-time }
+        latestEventId: { type: string }
+        project: { $ref: '#/components/schemas/Project' }
+        boards:
+          type: array
+          items: { $ref: '#/components/schemas/Board' }
+        lists:
+          type: array
+          items: { $ref: '#/components/schemas/List' }
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+        memberships:
+          type: array
+          items: { $ref: '#/components/schemas/Membership' }
+      required: [snapshotGeneratedAt, latestEventId, project, boards, lists, tasks, memberships]

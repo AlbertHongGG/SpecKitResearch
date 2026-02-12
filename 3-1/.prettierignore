@@ -1,0 +1,29 @@
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# Editors
+.vscode/
+.idea/
+
+# Env
+.env
+.env.*
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+
+# SQLite local dev/test
+backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
+*.sqlite
+*.sqlite3

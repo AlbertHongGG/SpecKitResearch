@@ -1,0 +1,1654 @@
+openapi: 3.0.3
+info:
+  title: Online Course Platform API (No Video Streaming)
+  version: 0.1.0
+  description: |
+    REST(JSON) API contract for the content-based online course platform.
+    Authentication uses cookie-based session.
+
+servers:
+  - url: http://localhost:3000
+
+security:
+  - cookieAuth: []
+
+tags:
+  - name: Auth
+  - name: Courses
+  - name: Purchases
+  - name: MyCourses
+  - name: Instructor
+  - name: Admin
+  - name: Content
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register with email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login with email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Clears session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/courses:
+    get:
+      tags: [Courses]
+      security: []
+      summary: List published courses
+      parameters:
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: tagIds
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - in: query
+          name: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseListResponse'
+
+  /api/courses/{courseId}:
+    get:
+      tags: [Courses]
+      security: []
+      summary: Get course marketing detail (visibility rules apply)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/courses/{courseId}/purchase:
+    post:
+      tags: [Purchases]
+      summary: Purchase a published course
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Purchase'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/my-courses:
+    get:
+      tags: [MyCourses]
+      summary: List purchased courses + progress
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyCoursesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/my-courses/{courseId}:
+    get:
+      tags: [Content]
+      summary: Course reader data (outline + content access)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseReaderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/lessons/{lessonId}/progress:
+    put:
+      tags: [Content]
+      summary: Mark lesson completion
+      parameters:
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetLessonCompletionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetLessonCompletionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses:
+    get:
+      tags: [Instructor]
+      summary: List instructor's courses
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCourseListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Instructor]
+      summary: Create course (draft)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorCreateCourseRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCreateCourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/instructor/courses/{courseId}:
+    get:
+      tags: [Instructor]
+      summary: Get instructor-managed course detail (includes curriculum)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCourseDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Instructor]
+      summary: Update course basics (draft/rejected only for instructors)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorUpdateCourseRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorUpdateCourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses/{courseId}/submit:
+    post:
+      tags: [Instructor]
+      summary: Submit course for review (draft -> submitted)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCourseStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses/{courseId}/back-to-draft:
+    post:
+      tags: [Instructor]
+      summary: Move course back to draft (rejected -> draft)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCourseStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses/{courseId}/status:
+    post:
+      tags: [Instructor]
+      summary: Toggle publish status (published <-> archived)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorSetPublishStatusRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCourseStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses/{courseId}/cover:
+    post:
+      tags: [Instructor]
+      summary: Bind uploaded image as course cover (makes it public)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorSetCoverRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorSetCoverResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses/{courseId}/sections:
+    post:
+      tags: [Instructor]
+      summary: Create section
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorCreateSectionRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCreateSectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/sections/{sectionId}:
+    patch:
+      tags: [Instructor]
+      summary: Update section
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorUpdateSectionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorUpdateSectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Instructor]
+      summary: Delete section (cascades lessons)
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/courses/{courseId}/sections/reorder:
+    put:
+      tags: [Instructor]
+      summary: Reorder sections
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorReorderSectionsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReorderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/sections/{sectionId}/lessons:
+    post:
+      tags: [Instructor]
+      summary: Create lesson
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorCreateLessonRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorCreateLessonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/lessons/{lessonId}:
+    patch:
+      tags: [Instructor]
+      summary: Update lesson
+      parameters:
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorUpdateLessonRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorUpdateLessonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Instructor]
+      summary: Delete lesson
+      parameters:
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/sections/{sectionId}/lessons/reorder:
+    put:
+      tags: [Instructor]
+      summary: Reorder lessons
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorReorderLessonsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReorderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/instructor/uploads:
+    post:
+      tags: [Instructor]
+      summary: Upload image/PDF (multipart/form-data)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                meta:
+                  type: string
+                  description: JSON string (e.g. {"courseId":"..."})
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/review-queue:
+    get:
+      tags: [Admin]
+      summary: List submitted courses pending review
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReviewQueueResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/courses/{courseId}/review:
+    post:
+      tags: [Admin]
+      summary: Review course (submitted -> published/rejected)
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReviewCourseRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReviewCourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/courses/{courseId}:
+    get:
+      tags: [Admin]
+      summary: Get course detail for admin
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCourseDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/courses/{courseId}/reviews:
+    get:
+      tags: [Admin]
+      summary: List course review history
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCourseReviewsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: List users
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUsersResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/users/{userId}:
+    patch:
+      tags: [Admin]
+      summary: Update user role/isActive
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateUserRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUpdateUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/categories:
+    get:
+      tags: [Admin]
+      summary: List categories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCategoriesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin]
+      summary: Create category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateCategoryRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCreateCategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/admin/categories/{categoryId}:
+    patch:
+      tags: [Admin]
+      summary: Update/toggle category
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateCategoryRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUpdateCategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/admin/tags:
+    get:
+      tags: [Admin]
+      summary: List tags
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTagsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin]
+      summary: Create tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateTagRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCreateTagResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/admin/tags/{tagId}:
+    patch:
+      tags: [Admin]
+      summary: Update/toggle tag
+      parameters:
+        - in: path
+          name: tagId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateTagRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUpdateTagResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get platform stats
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+
+    DeleteResponse:
+      type: object
+      required: [deleted]
+      properties:
+        deleted: { type: boolean }
+
+    ReorderResponse:
+      type: object
+      required: [reordered]
+      properties:
+        reordered: { type: boolean }
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      required: [sessionEstablished, user]
+      properties:
+        sessionEstablished: { type: boolean }
+        user:
+          $ref: '#/components/schemas/UserPublic'
+
+    UserPublic:
+      type: object
+      required: [userId, email, role, isActive]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [student, instructor, admin] }
+        isActive: { type: boolean }
+
+    CourseListResponse:
+      type: object
+      required: [courses]
+      properties:
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseListItem'
+
+    CourseListItem:
+      type: object
+      required: [courseId, title, price, category, tags]
+      properties:
+        courseId: { type: string }
+        title: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverImageUrl: { type: string, nullable: true }
+        category:
+          $ref: '#/components/schemas/Category'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        instructorName: { type: string, nullable: true }
+
+    CourseDetailResponse:
+      type: object
+      required: [course]
+      properties:
+        course:
+          $ref: '#/components/schemas/CourseDetail'
+
+    CourseDetail:
+      type: object
+      required: [courseId, title, description, price, status, category, tags, outline, access]
+      properties:
+        courseId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverImageUrl: { type: string, nullable: true }
+        status: { type: string, enum: [draft, submitted, published, rejected, archived] }
+        category:
+          $ref: '#/components/schemas/Category'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        instructorName: { type: string, nullable: true }
+        outline:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectionOutline'
+        access:
+          $ref: '#/components/schemas/CourseAccess'
+
+    CourseAccess:
+      type: object
+      required: [canPurchase, canReadContent]
+      properties:
+        canPurchase: { type: boolean }
+        canReadContent: { type: boolean }
+
+    SectionOutline:
+      type: object
+      required: [sectionTitle, lessons]
+      properties:
+        sectionTitle: { type: string }
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonOutline'
+
+    LessonOutline:
+      type: object
+      required: [lessonId, lessonTitle, order]
+      properties:
+        lessonId: { type: string }
+        lessonTitle: { type: string }
+        order: { type: integer }
+
+    CourseReaderResponse:
+      type: object
+      required: [courseId, outline]
+      properties:
+        courseId: { type: string }
+        outline:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectionOutline'
+        lessonContent:
+          $ref: '#/components/schemas/LessonContent'
+
+    LessonContent:
+      type: object
+      required: [lessonId, contentType]
+      properties:
+        lessonId: { type: string }
+        contentType: { type: string, enum: [text, image, pdf] }
+        contentText: { type: string, nullable: true }
+        contentImageUrl: { type: string, nullable: true }
+        contentFileUrl: { type: string, nullable: true }
+        contentFileName: { type: string, nullable: true }
+
+    Purchase:
+      type: object
+      required: [purchaseId, userId, courseId, purchasedAt]
+      properties:
+        purchaseId: { type: string }
+        userId: { type: string }
+        courseId: { type: string }
+        purchasedAt: { type: string, format: date-time }
+
+    MyCoursesResponse:
+      type: object
+      required: [courses]
+      properties:
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyCourseItem'
+
+    MyCourseItem:
+      type: object
+      required: [courseId, title, purchasedAt, progress]
+      properties:
+        courseId: { type: string }
+        title: { type: string }
+        coverImageUrl: { type: string, nullable: true }
+        instructorName: { type: string, nullable: true }
+        purchasedAt: { type: string, format: date-time }
+        progress:
+          $ref: '#/components/schemas/CourseProgress'
+
+    CourseProgress:
+      type: object
+      required: [completedLessons, totalLessons]
+      properties:
+        completedLessons: { type: integer, minimum: 0 }
+        totalLessons: { type: integer, minimum: 0 }
+
+    SetLessonCompletionRequest:
+      type: object
+      required: [isCompleted]
+      properties:
+        isCompleted: { type: boolean }
+
+    SetLessonCompletionResponse:
+      type: object
+      required: [lessonId, isCompleted, courseProgress]
+      properties:
+        lessonId: { type: string }
+        isCompleted: { type: boolean }
+        completedAt: { type: string, format: date-time, nullable: true }
+        courseProgress:
+          $ref: '#/components/schemas/CourseProgress'
+
+    InstructorCreateCourseRequest:
+      type: object
+      required: [title, description, price, categoryId]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverFileId: { type: string, nullable: true }
+        categoryId: { type: string }
+        tagIds:
+          type: array
+          items: { type: string }
+
+    InstructorUpdateCourseRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverFileId: { type: string, nullable: true }
+        categoryId: { type: string }
+        tagIds:
+          type: array
+          items: { type: string }
+
+    InstructorCreateCourseResponse:
+      type: object
+      required: [courseId]
+      properties:
+        courseId: { type: string }
+
+    InstructorUpdateCourseResponse:
+      type: object
+      required: [course]
+      properties:
+        course:
+          type: object
+          additionalProperties: true
+
+    InstructorCourse:
+      type: object
+      required: [id, title, description, price, categoryId, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        categoryId: { type: string }
+        coverFileId: { type: string, nullable: true }
+        status: { type: string }
+        rejectedReason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    InstructorCourseListResponse:
+      type: object
+      required: [courses]
+      properties:
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstructorCourse'
+
+    InstructorCourseDetailResponse:
+      type: object
+      required: [course]
+      properties:
+        course:
+          type: object
+          additionalProperties: true
+
+    InstructorCourseStatusResponse:
+      type: object
+      required: [courseId, status]
+      properties:
+        courseId: { type: string }
+        status: { type: string }
+
+    InstructorSetPublishStatusRequest:
+      type: object
+      required: [toStatus]
+      properties:
+        toStatus: { type: string, enum: [published, archived] }
+
+    InstructorSetCoverRequest:
+      type: object
+      required: [fileId]
+      properties:
+        fileId: { type: string }
+
+    InstructorSetCoverResponse:
+      type: object
+      required: [coverImageUrl]
+      properties:
+        coverImageUrl: { type: string }
+
+    InstructorCreateSectionRequest:
+      type: object
+      required: [title, order]
+      properties:
+        title: { type: string }
+        order: { type: integer, minimum: 1 }
+
+    InstructorCreateSectionResponse:
+      type: object
+      required: [sectionId]
+      properties:
+        sectionId: { type: string }
+
+    InstructorUpdateSectionRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string }
+        order: { type: integer, minimum: 1 }
+
+    InstructorUpdateSectionResponse:
+      type: object
+      required: [section]
+      properties:
+        section:
+          type: object
+          additionalProperties: true
+
+    InstructorReorderSectionsRequest:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          items:
+            type: object
+            required: [sectionId, order]
+            properties:
+              sectionId: { type: string }
+              order: { type: integer, minimum: 1 }
+
+    InstructorCreateLessonRequest:
+      type: object
+      required: [title, order, contentType]
+      properties:
+        title: { type: string }
+        order: { type: integer, minimum: 1 }
+        contentType: { type: string, enum: [text, image, pdf] }
+        contentText: { type: string, nullable: true }
+        contentImageFileId: { type: string, nullable: true }
+        contentPdfFileId: { type: string, nullable: true }
+
+    InstructorCreateLessonResponse:
+      type: object
+      required: [lessonId]
+      properties:
+        lessonId: { type: string }
+
+    InstructorUpdateLessonRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string }
+        order: { type: integer, minimum: 1 }
+        contentType: { type: string, enum: [text, image, pdf] }
+        contentText: { type: string, nullable: true }
+        contentImageFileId: { type: string, nullable: true }
+        contentPdfFileId: { type: string, nullable: true }
+
+    InstructorUpdateLessonResponse:
+      type: object
+      required: [lesson]
+      properties:
+        lesson:
+          type: object
+          additionalProperties: true
+
+    InstructorReorderLessonsRequest:
+      type: object
+      required: [lessons]
+      properties:
+        lessons:
+          type: array
+          items:
+            type: object
+            required: [lessonId, order]
+            properties:
+              lessonId: { type: string }
+              order: { type: integer, minimum: 1 }
+
+    InstructorUploadResponse:
+      type: object
+      required: [fileId, url, mimeType]
+      properties:
+        fileId: { type: string }
+        url: { type: string }
+        originalName: { type: string, nullable: true }
+        mimeType: { type: string }
+
+    AdminReviewQueueResponse:
+      type: object
+      required: [courses]
+      properties:
+        courses:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    AdminReviewCourseResponse:
+      type: object
+      required: [courseId, status]
+      properties:
+        courseId: { type: string }
+        status: { type: string }
+
+    AdminCourseDetailResponse:
+      type: object
+      required: [course]
+      properties:
+        course:
+          type: object
+          additionalProperties: true
+
+    AdminCourseReviewsResponse:
+      type: object
+      required: [reviews]
+      properties:
+        reviews:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    AdminUser:
+      type: object
+      required: [id, email, role, isActive, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminUsersResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+
+    AdminUpdateUserRequest:
+      type: object
+      required: [role, isActive]
+      properties:
+        role: { type: string }
+        isActive: { type: boolean }
+
+    AdminUpdateUserResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/AdminUser'
+
+    AdminCategory:
+      type: object
+      required: [id, name, isActive, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminTag:
+      type: object
+      required: [id, name, isActive, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminCategoriesResponse:
+      type: object
+      required: [categories]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminCategory'
+
+    AdminCreateCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+
+    AdminCreateCategoryResponse:
+      type: object
+      required: [category]
+      properties:
+        category:
+          $ref: '#/components/schemas/AdminCategory'
+
+    AdminUpdateCategoryRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        isActive: { type: boolean }
+
+    AdminUpdateCategoryResponse:
+      type: object
+      required: [category]
+      properties:
+        category:
+          $ref: '#/components/schemas/AdminCategory'
+
+    AdminTagsResponse:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTag'
+
+    AdminCreateTagRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+
+    AdminCreateTagResponse:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          $ref: '#/components/schemas/AdminTag'
+
+    AdminUpdateTagRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        isActive: { type: boolean }
+
+    AdminUpdateTagResponse:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          $ref: '#/components/schemas/AdminTag'
+
+    AdminStatsResponse:
+      type: object
+      required: [userCount, purchaseCount, courseCountsByStatus]
+      properties:
+        userCount: { type: integer, minimum: 0 }
+        purchaseCount: { type: integer, minimum: 0 }
+        courseCountsByStatus:
+          type: object
+          additionalProperties:
+            type: integer
+
+    Course:
+      type: object
+      required: [courseId, instructorId, categoryId, title, description, price, status]
+      properties:
+        courseId: { type: string }
+        instructorId: { type: string }
+        categoryId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverImageUrl: { type: string, nullable: true }
+        status: { type: string, enum: [draft, submitted, published, rejected, archived] }
+        rejectedReason: { type: string, nullable: true }
+        publishedAt: { type: string, format: date-time, nullable: true }
+        archivedAt: { type: string, format: date-time, nullable: true }
+
+    AdminReviewCourseRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [published, rejected] }
+        reason: { type: string, nullable: true }
+
+    Category:
+      type: object
+      required: [categoryId, name, isActive]
+      properties:
+        categoryId: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+
+    Tag:
+      type: object
+      required: [tagId, name, isActive]
+      properties:
+        tagId: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }

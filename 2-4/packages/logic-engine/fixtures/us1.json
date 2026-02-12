@@ -1,0 +1,92 @@
+{
+  "snapshot": {
+    "survey": {
+      "id": "00000000-0000-0000-0000-000000000100",
+      "slug": "fixture-us1",
+      "title": "Fixture US1 Survey",
+      "description": "Small fixture for cross-environment visibility consistency.",
+      "is_anonymous": false,
+      "status": "Published"
+    },
+    "publish_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "questions": [
+      {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "type": "SingleChoice",
+        "title": "Do you have a pet?",
+        "is_required": true,
+        "order": 1
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "type": "Text",
+        "title": "What's your pet's name?",
+        "is_required": true,
+        "order": 2
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000003",
+        "type": "Rating",
+        "title": "How much do you like animals? (1-5)",
+        "is_required": true,
+        "order": 3
+      }
+    ],
+    "rule_groups": [
+      {
+        "id": "00000000-0000-0000-0000-000000000010",
+        "target_question_id": "00000000-0000-0000-0000-000000000002",
+        "action": "show",
+        "group_operator": "AND",
+        "rules": [
+          {
+            "id": "00000000-0000-0000-0000-000000000011",
+            "source_question_id": "00000000-0000-0000-0000-000000000001",
+            "operator": "equals",
+            "value": "yes"
+          }
+        ]
+      }
+    ]
+  },
+  "vectors": [
+    {
+      "name": "empty",
+      "answers": {},
+      "expected": {
+        "visible_question_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "hidden_question_ids": ["00000000-0000-0000-0000-000000000002"]
+      }
+    },
+    {
+      "name": "q1_yes",
+      "answers": {
+        "00000000-0000-0000-0000-000000000001": "yes"
+      },
+      "expected": {
+        "visible_question_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "hidden_question_ids": []
+      }
+    },
+    {
+      "name": "q1_no",
+      "answers": {
+        "00000000-0000-0000-0000-000000000001": "no"
+      },
+      "expected": {
+        "visible_question_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "hidden_question_ids": ["00000000-0000-0000-0000-000000000002"]
+      }
+    }
+  ]
+}

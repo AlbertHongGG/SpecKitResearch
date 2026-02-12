@@ -1,0 +1,38 @@
+### Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+### Editors
+!.vscode/settings.json
+.idea/
+
+### Logs
+*.log
+
+### Env
+.env
+.env.*
+!.env.example
+
+### Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+dist/
+build/
+.next/
+out/
+coverage/
+
+### SQLite (local dev/test)
+backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
+*.sqlite
+*.sqlite3

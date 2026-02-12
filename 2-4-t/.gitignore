@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+dist/
+build/
+out/
+
+# logs
+*.log
+
+# env
+.env
+.env.*
+
+# prisma/sqlite
+*.db
+*.db-journal
+prisma/dev.db
+
+# coverage
+coverage/
+
+# turbo
+.turbo/
+
+# caches
+.eslintcache
+
+# misc
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/

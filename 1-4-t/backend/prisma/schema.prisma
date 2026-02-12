@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  Customer
+  Agent
+  Admin
+}
+
+enum TicketCategory {
+  Account
+  Billing
+  Technical
+  Other
+}
+
+enum TicketStatus {
+  Open
+  InProgress @map("In Progress")
+  WaitingForCustomer @map("Waiting for Customer")
+  Resolved
+  Closed
+}
+
+enum AuditAction {
+  TICKET_CREATED
+  MESSAGE_CREATED
+  STATUS_CHANGED
+  ASSIGNEE_CHANGED
+}
+
+enum AuditEntityType {
+  Ticket
+  TicketMessage
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  customerTickets Ticket[]       @relation("CustomerTickets")
+  assigneeTickets Ticket[]       @relation("AssigneeTickets")
+  messages        TicketMessage[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Ticket {
+  id         String         @id @default(uuid())
+  title      String
+  category   TicketCategory
+  status     TicketStatus
+
+  customerId String @map("customer_id")
+  assigneeId String? @map("assignee_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  closedAt  DateTime? @map("closed_at")
+
+  customer User  @relation("CustomerTickets", fields: [customerId], references: [id])
+  assignee User? @relation("AssigneeTickets", fields: [assigneeId], references: [id])
+
+  messages TicketMessage[]
+
+  @@index([customerId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([updatedAt])
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id         String   @id @default(uuid())
+  ticketId   String   @map("ticket_id")
+  authorId   String   @map("author_id")
+  role       Role
+  content    String
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
+
+  @@map("ticket_messages")
+}
+
+model AuditLog {
+  id         String          @id @default(uuid())
+  entityType AuditEntityType @map("entity_type")
+  entityId   String          @map("entity_id")
+  action     AuditAction
+  actorId    String          @map("actor_id")
+  metadataJson String        @map("metadata_json")
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+
+  @@map("audit_log")
+}

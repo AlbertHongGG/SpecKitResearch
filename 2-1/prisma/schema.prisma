@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions       Session[]
+  coursesAuthored Course[] @relation("CourseAuthor")
+  purchases      Purchase[]
+  lessonProgress LessonProgress[]
+  adminReviews   CourseReview[] @relation("AdminReviews")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  lastSeenAt DateTime? @map("last_seen_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model CourseCategory {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  courses  Course[]
+
+  @@map("course_categories")
+}
+
+model Tag {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  courseTags CourseTag[]
+
+  @@map("tags")
+}
+
+model Course {
+  id           String       @id @default(cuid())
+  instructor   User         @relation("CourseAuthor", fields: [instructorId], references: [id])
+  instructorId String       @map("instructor_id")
+  category     CourseCategory @relation(fields: [categoryId], references: [id])
+  categoryId   String       @map("category_id")
+
+  title        String
+  description  String
+  price        Int
+  coverFileId  String?      @map("cover_file_id")
+  status       String @default("draft")
+  rejectedReason String?    @map("rejected_reason")
+  publishedAt  DateTime?    @map("published_at")
+  archivedAt   DateTime?    @map("archived_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  sections   Section[]
+  purchases  Purchase[]
+  reviews    CourseReview[]
+  tags       CourseTag[]
+  files      FileAsset[]
+
+  @@index([status])
+  @@index([instructorId, status])
+  @@index([categoryId])
+  @@map("courses")
+}
+
+model CourseTag {
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String @map("course_id")
+  tag      Tag    @relation(fields: [tagId], references: [id])
+  tagId    String @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([courseId, tagId])
+  @@index([tagId])
+  @@map("course_tags")
+}
+
+model Section {
+  id       String @id @default(cuid())
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String @map("course_id")
+  title    String
+  order    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  lessons  Lesson[]
+
+  @@unique([courseId, order])
+  @@index([courseId])
+  @@map("sections")
+}
+
+model Lesson {
+  id           String            @id @default(cuid())
+  section      Section           @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  sectionId    String            @map("section_id")
+  title        String
+  order        Int
+  contentType  String @map("content_type")
+  contentText  String?           @map("content_text")
+  contentImageFileId String?     @map("content_image_file_id")
+  contentPdfFileId   String?     @map("content_pdf_file_id")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  progress LessonProgress[]
+
+  @@unique([sectionId, order])
+  @@index([sectionId])
+  @@map("lessons")
+}
+
+model FileAsset {
+  id          String        @id @default(cuid())
+  visibility  String @default("protected")
+  storagePath String        @map("storage_path")
+  mimeType    String        @map("mime_type")
+  originalName String?      @map("original_name")
+  sizeBytes   Int?          @map("size_bytes")
+
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  courseId String? @map("course_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([courseId])
+  @@map("file_assets")
+}
+
+model Purchase {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @map("user_id")
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String   @map("course_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, courseId])
+  @@index([userId, createdAt])
+  @@index([courseId, createdAt])
+  @@map("purchases")
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @map("user_id")
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId    String   @map("lesson_id")
+  isCompleted Boolean  @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, lessonId])
+  @@index([lessonId])
+  @@index([userId])
+  @@map("lesson_progress")
+}
+
+model CourseReview {
+  id        String   @id @default(cuid())
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String   @map("course_id")
+  admin     User     @relation("AdminReviews", fields: [adminId], references: [id])
+  adminId   String   @map("admin_id")
+  decision  String
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([courseId])
+  @@index([adminId])
+  @@map("course_reviews")
+}

@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectVisibility {
+  private
+  shared
+}
+
+enum ArchiveStatus {
+  active
+  archived
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  rejected
+  revoked
+}
+
+enum ProjectRole {
+  owner
+  admin
+  member
+  viewer
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  blocked
+  done
+  archived
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime @default(now())
+
+  projectsOwned Project[]           @relation("ProjectOwner")
+  memberships   ProjectMembership[]
+  invitationsSent ProjectInvitation[] @relation("InvitedBy")
+  sessions      AuthSession[]
+  comments      Comment[]
+  activities    ActivityLog[]
+  createdTasks  Task[]              @relation("TaskCreator")
+  assignedTasks TaskAssignee[]
+}
+
+model Project {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User              @relation("ProjectOwner", fields: [ownerId], references: [id])
+  visibility  ProjectVisibility @default(private)
+  status      ArchiveStatus     @default(active)
+  version     Int               @default(1)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  memberships ProjectMembership[]
+  invitations ProjectInvitation[]
+  boards      Board[]
+  tasks       Task[]
+  activities  ActivityLog[]
+  events      ProjectEvent[]
+
+  @@index([ownerId])
+}
+
+model ProjectEvent {
+  seq       Int      @id @default(autoincrement())
+  projectId String
+  eventId   String   @unique
+  type      String
+  ts        DateTime @default(now())
+  payload   Json
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, seq])
+  @@index([projectId, ts])
+}
+
+model ProjectMembership {
+  id        String      @id @default(uuid())
+  projectId String
+  userId    String
+  role      ProjectRole
+  version   Int         @default(1)
+  joinedAt  DateTime    @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model ProjectInvitation {
+  id            String           @id @default(uuid())
+  projectId     String
+  email         String
+  invitedRole   ProjectRole
+  invitedById   String
+  status        InvitationStatus @default(pending)
+  createdAt     DateTime         @default(now())
+  respondedAt   DateTime?
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitedBy   User    @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([projectId])
+  @@index([email])
+}
+
+model Board {
+  id        String        @id @default(uuid())
+  projectId String
+  name      String
+  order     Int
+  status    ArchiveStatus @default(active)
+  version   Int           @default(1)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lists   List[]
+  tasks   Task[]
+
+  @@index([projectId])
+  @@index([projectId, order])
+}
+
+model List {
+  id           String        @id @default(uuid())
+  boardId      String
+  title        String
+  order        Int
+  status       ArchiveStatus @default(active)
+  isWipLimited Boolean       @default(false)
+  wipLimit     Int?
+  version      Int           @default(1)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([boardId])
+  @@index([boardId, order])
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  projectId       String
+  boardId         String
+  listId          String
+  title           String
+  description     String?
+  dueDate         DateTime?
+  priority        Int?
+  position        String
+  status          TaskStatus @default(open)
+  version         Int        @default(1)
+  createdByUserId String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  board     Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list      List    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("TaskCreator", fields: [createdByUserId], references: [id])
+
+  assignees TaskAssignee[]
+  comments  Comment[]
+
+  @@index([listId, position])
+  @@unique([listId, position])
+  @@index([projectId])
+}
+
+model TaskAssignee {
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([taskId, createdAt])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  actorId    String
+  entityType String
+  entityId   String
+  action     String
+  timestamp  DateTime @default(now())
+  metadata   Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User    @relation(fields: [actorId], references: [id])
+
+  @@index([projectId, timestamp])
+}
+
+model AuthSession {
+  id                   String   @id @default(uuid())
+  userId               String
+  refreshTokenHash     String
+  createdAt            DateTime @default(now())
+  expiresAt            DateTime
+  revokedAt            DateTime?
+  rotatedFromSessionId String?
+  userAgent            String?
+  ip                   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+} 

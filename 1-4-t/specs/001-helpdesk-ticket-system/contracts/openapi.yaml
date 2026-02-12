@@ -1,0 +1,925 @@
+openapi: 3.0.3
+info:
+  title: Helpdesk / Ticket System API
+  version: 1.0.0
+  description: |
+    客服工單系統 REST API 合約（契約優先）。
+    - Auth token 策略：bearer-only（單一 JWT token）。Client 以 `Authorization: Bearer <token>` 傳遞。
+    - 401: 未登入/無效 token/停用帳號
+    - 403: 已登入但角色不符（route-level）
+    - 404: ticket 不存在或不可見（避免 IDOR 洩漏）
+    - 409: 併發衝突（例如已被他人接手/狀態已變更）
+servers:
+  - url: http://localhost:3000
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      security: []
+      summary: 註冊（Email + Password）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      security: []
+      summary: 登入
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      summary: 登出（使 session 失效）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      summary: 取得目前登入者資訊
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tickets:
+    get:
+      summary: Customer - 我的工單列表
+      description: 僅 Customer 可用；支援 status 篩選。
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/TicketStatus'
+          required: false
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      summary: Customer - 建立新工單
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tickets/{ticketId}:
+    get:
+      summary: 工單詳情（依角色與可見性）
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tickets/{ticketId}/messages:
+    post:
+      summary: 新增公開留言
+      description: |
+        - Customer：僅允許在 Waiting for Customer
+        - Agent/Admin：Closed 禁止；其餘依可見性與業務規則
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostMessageRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tickets/{ticketId}/internal-notes:
+    post:
+      summary: 新增內部備註（is_internal=true）
+      description: 僅 Agent/Admin；Closed 禁止。
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostInternalNoteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tickets/{ticketId}/status:
+    post:
+      summary: 變更工單狀態（from/to）
+      description: 伺服器端驗證狀態機；非法轉換一律 400。
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeStatusRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tickets/{ticketId}/take:
+    post:
+      summary: Agent - 接手工單（Open -> In Progress）
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tickets/{ticketId}/cancel-take:
+    post:
+      summary: Agent - 取消接手（In Progress -> Open 且 assignee=null）
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /agent/tickets:
+    get:
+      summary: Agent - 工作台列表（未指派/指派給我）
+      description: Agent 可用；Admin 可讀。
+      parameters:
+        - in: query
+          name: view
+          required: true
+          schema:
+            type: string
+            enum: [unassigned, mine]
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: '#/components/schemas/TicketStatus'
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/dashboard:
+    get:
+      summary: Admin - Dashboard 指標
+      parameters:
+        - in: query
+          name: range
+          required: true
+          schema:
+            type: string
+            enum: [last_7_days, last_30_days]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/tickets/{ticketId}/assignee:
+    put:
+      summary: Admin - 指派/改派（一次僅能一位）
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTicketRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketAssigneeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/users:
+    get:
+      summary: Admin - 使用者列表（客服帳號管理）
+      description: |
+        僅 Admin 可用；用於管理 Agent/Admin 帳號（建立/停用/角色）。
+      parameters:
+        - in: query
+          name: role
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - in: query
+          name: is_active
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      summary: Admin - 建立客服帳號（Agent/Admin）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminUserRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{userId}:
+    patch:
+      summary: Admin - 更新使用者（停用/啟用/改角色）
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminUserRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: 機讀錯誤碼（例如 INVALID_TRANSITION / ALREADY_TAKEN）
+            message:
+              type: string
+            request_id:
+              type: string
+              nullable: true
+          required: [code, message]
+      required: [error]
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        password_confirm:
+          type: string
+          minLength: 8
+      required: [email, password, password_confirm]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserSummary'
+      required: [token, user]
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+      required: [id, email, role]
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, email, role, is_active, created_at]
+
+    AdminUserResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/AdminUser'
+      required: [user]
+
+    AdminUserListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        total:
+          type: integer
+      required: [items, total]
+
+    CreateAdminUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        role:
+          $ref: '#/components/schemas/UserRole'
+      required: [email, password, role]
+
+    UpdateAdminUserRequest:
+      type: object
+      properties:
+        is_active:
+          type: boolean
+          nullable: true
+        role:
+          allOf:
+            - $ref: '#/components/schemas/UserRole'
+          nullable: true
+
+    UserRole:
+      type: string
+      enum: [Customer, Agent, Admin]
+
+    TicketCategory:
+      type: string
+      enum: [Account, Billing, Technical, Other]
+
+    TicketStatus:
+      type: string
+      enum: [Open, In Progress, Waiting for Customer, Resolved, Closed]
+
+    TicketSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/TicketCategory'
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        updated_at:
+          type: string
+          format: date-time
+        assignee:
+          allOf:
+            - $ref: '#/components/schemas/UserSummary'
+          nullable: true
+      required: [id, title, category, status, updated_at]
+
+    TicketListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketSummary'
+        total:
+          type: integer
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          minimum: 0
+      required: [items, total, limit, offset]
+
+    TicketMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+        author:
+          $ref: '#/components/schemas/UserSummary'
+        role:
+          $ref: '#/components/schemas/UserRole'
+        content:
+          type: string
+        is_internal:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, ticket_id, author, role, content, is_internal, created_at]
+
+    TicketDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/TicketCategory'
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        customer:
+          $ref: '#/components/schemas/UserSummary'
+        assignee:
+          allOf:
+            - $ref: '#/components/schemas/UserSummary'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketMessage'
+      required: [id, title, category, status, customer, created_at, updated_at, messages]
+
+    TicketDetailResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: '#/components/schemas/TicketDetail'
+      required: [ticket]
+
+    CreateTicketRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        category:
+          $ref: '#/components/schemas/TicketCategory'
+        description:
+          type: string
+      required: [title, category, description]
+
+    PostMessageRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+      required: [content]
+
+    PostInternalNoteRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+      required: [content]
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          $ref: '#/components/schemas/TicketMessage'
+        ticket:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/TicketStatus'
+            updated_at:
+              type: string
+              format: date-time
+          required: [id, updated_at]
+      required: [message, ticket]
+
+    ChangeStatusRequest:
+      type: object
+      properties:
+        from_status:
+          $ref: '#/components/schemas/TicketStatus'
+        to_status:
+          $ref: '#/components/schemas/TicketStatus'
+      required: [from_status, to_status]
+
+    TicketStatusResponse:
+      type: object
+      properties:
+        ticket:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/TicketStatus'
+            assignee_id:
+              type: string
+              format: uuid
+              nullable: true
+            updated_at:
+              type: string
+              format: date-time
+            closed_at:
+              type: string
+              format: date-time
+              nullable: true
+          required: [id, status, updated_at]
+      required: [ticket]
+
+    AssignTicketRequest:
+      type: object
+      properties:
+        assignee_id:
+          type: string
+          format: uuid
+          nullable: true
+      required: [assignee_id]
+
+    TicketAssigneeResponse:
+      type: object
+      properties:
+        ticket:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            assignee_id:
+              type: string
+              format: uuid
+              nullable: true
+            updated_at:
+              type: string
+              format: date-time
+          required: [id, assignee_id, updated_at]
+      required: [ticket]
+
+    DashboardResponse:
+      type: object
+      properties:
+        sla:
+          type: object
+          properties:
+            first_response_time_ms_avg:
+              type: number
+              nullable: true
+            resolution_time_ms_avg:
+              type: number
+              nullable: true
+          required: [first_response_time_ms_avg, resolution_time_ms_avg]
+        status_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        agent_load:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+                format: uuid
+              in_progress_count:
+                type: integer
+            required: [agent_id, in_progress_count]
+      required: [sla, status_distribution, agent_load]

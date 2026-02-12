@@ -1,0 +1,17 @@
+export const DEFAULT_REDACT_PATHS: string[] = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'req.headers["x-api-key"]',
+  'req.headers["x-auth-token"]',
+  'req.body.password',
+  'req.body.currentPassword',
+  'req.body.newPassword',
+  'req.body.confirmPassword',
+  'req.body.passwordHash',
+  'req.body.password_hash',
+  'req.body.token',
+  'req.body.accessToken',
+  'req.body.refreshToken',
+  'req.body.secret',
+  'res.headers["set-cookie"]',
+];

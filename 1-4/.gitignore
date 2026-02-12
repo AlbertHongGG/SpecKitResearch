@@ -1,0 +1,47 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env
+.env
+.env.*
+
+# Python (workspace tooling)
+.venv/
+venv/
+__pycache__/
+
+# Node
+node_modules/
+
+# Builds
+dist/
+build/
+coverage/
+
+# Vite
+frontend/dist/
+
+# Nest
+backend/dist/
+
+# Prisma / SQLite
+backend/prisma/dev.db
+backend/generated/
+*.db
+*.sqlite
+*.sqlite3
+
+# Misc
+*.tmp
+*.swp

@@ -1,0 +1,40 @@
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.swo
+*.log
+.idea/
+
+# Env
+.env
+.env.*
+
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+dist/
+build/
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# SQLite (general)
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploads (MVP local attachment storage)
+backend/uploads/
+backend/.uploads/
+uploads/
+
+# OS / tooling
+*.orig

@@ -1,0 +1,17 @@
+{
+  "name": "@app/shared",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate:openapi": "openapi-typescript ../../specs/002-expense-monthly-report/contracts/openapi.yaml -o src/api-types.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "openapi-typescript": "^7.6.1",
+    "typescript": "^5.7.3"
+  }
+}

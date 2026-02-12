@@ -1,0 +1,620 @@
+openapi: 3.1.0
+info:
+  title: Internal Document Review & Approval API
+  version: 1.0.0
+  description: |
+    內部文件審核與簽核系統 REST API（JSON）。
+
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: Auth
+  - name: Documents
+  - name: Reviews
+  - name: AdminFlows
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+
+  schemas:
+    Role:
+      type: string
+      enum: [User, Reviewer, Admin]
+
+    DocumentStatus:
+      type: string
+      enum: [Draft, Submitted, In Review, Rejected, Approved, Archived]
+
+    ReviewTaskStatus:
+      type: string
+      enum: [Pending, Approved, Rejected, Cancelled]
+
+    ErrorResponse:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+          examples: [Unauthorized, Forbidden, NotFound, ValidationFailed, StateNotAllowed, Conflict]
+        message:
+          type: string
+        requestId:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    UserMe:
+      type: object
+      required: [id, role, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+
+    DocumentListItem:
+      type: object
+      required: [id, title, status, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateDocumentRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        content:
+          type: string
+
+    UpdateDraftRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        content:
+          type: string
+
+    SubmitRequest:
+      type: object
+      required: [flowTemplateId]
+      properties:
+        flowTemplateId:
+          type: string
+          format: uuid
+
+    ReviewTaskListItem:
+      type: object
+      required: [id, documentId, stepKey, mode, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        stepKey:
+          type: string
+        mode:
+          type: string
+          enum: [Serial, Parallel]
+        status:
+          $ref: '#/components/schemas/ReviewTaskStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    ActOnTaskRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [Approve, Reject]
+        reason:
+          type: string
+          description: Reject 時必填
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '204':
+          description: Login success; sets HttpOnly cookies
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      responses:
+        '204':
+          description: Logout success; clears cookies
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List visible documents (User: own; Admin: all)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Document list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documents]
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentListItem'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Reviewer is forbidden from listing all documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [Documents]
+      summary: Create a new document (Draft)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDocumentRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Reviewer cannot create documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}:
+    get:
+      tags: [Documents]
+      summary: Get document detail (visibility rules apply)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail payload
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (includes anti-enumeration for Reviewer)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/draft:
+    put:
+      tags: [Documents]
+      summary: Update draft title/content (Draft only)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDraftRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: State not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/submit:
+    post:
+      tags: [Documents]
+      summary: Submit document for approval (Draft only)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitRequest'
+      responses:
+        '200':
+          description: Submitted; document enters In Review
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documentId, status]
+                properties:
+                  documentId:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: '#/components/schemas/DocumentStatus'
+        '400':
+          description: Validation/state not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/reopen:
+    post:
+      tags: [Documents]
+      summary: Reopen rejected document as Draft (Rejected only)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Reopened
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documentId, status]
+                properties:
+                  documentId:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: '#/components/schemas/DocumentStatus'
+        '400':
+          description: State not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/archive:
+    post:
+      tags: [Documents]
+      summary: Archive approved document (Admin only)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Archived
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documentId, status]
+                properties:
+                  documentId:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: '#/components/schemas/DocumentStatus'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /reviews/tasks:
+    get:
+      tags: [Reviews]
+      summary: List my pending review tasks (Reviewer only)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tasks]
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewTaskListItem'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /review-tasks/{taskId}/action:
+    post:
+      tags: [Reviews]
+      summary: Approve or reject a pending task (assignee only)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActOnTaskRequest'
+      responses:
+        '200':
+          description: Action applied
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation/state not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (includes anti-enumeration)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict (already processed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/flows:
+    get:
+      tags: [AdminFlows]
+      summary: List flow templates (Admin only)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Flow templates
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [AdminFlows]
+      summary: Create or update flow template (Admin only)
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+security:
+  - cookieAuth: []

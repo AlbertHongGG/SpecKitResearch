@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  instructor
+  admin
+}
+
+enum CourseStatus {
+  draft
+  submitted
+  published
+  rejected
+  archived
+}
+
+enum LessonContentType {
+  text
+  image
+  pdf
+}
+
+enum StorageProvider {
+  LOCAL
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String
+  emailLower   String   @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  courses      Course[] @relation("InstructorCourses")
+  purchases    Purchase[]
+  progress     LessonProgress[]
+  reviews      CourseReview[] @relation("AdminReviews")
+}
+
+model Session {
+  id               String   @id @default(uuid())
+  sessionTokenHash String   @unique
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  createdAt        DateTime @default(now())
+  lastSeenAt       DateTime?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokedReason    String?
+  ip               String?
+  userAgent        String?
+
+  @@index([userId, expiresAt])
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses   Course[]
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courseTags CourseTag[]
+}
+
+model Course {
+  id            String       @id @default(uuid())
+  instructorId  String
+  instructor    User         @relation("InstructorCourses", fields: [instructorId], references: [id])
+  title         String
+  description   String
+  price         Int
+  coverImageUrl String?
+  status        CourseStatus @default(draft)
+  publishedAt   DateTime?
+  archivedAt    DateTime?
+  rejectedReason String?
+  categoryId    String?
+  category      Category?    @relation(fields: [categoryId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  sections      Section[]
+  purchases     Purchase[]
+  reviews       CourseReview[]
+  courseTags    CourseTag[]
+}
+
+model CourseTag {
+  courseId String
+  tagId    String
+  course   Course @relation(fields: [courseId], references: [id])
+  tag      Tag    @relation(fields: [tagId], references: [id])
+
+  @@id([courseId, tagId])
+  @@unique([courseId, tagId])
+}
+
+model CourseReview {
+  id              String   @id @default(uuid())
+  courseId        String
+  reviewerAdminId String
+  decision        CourseStatus
+  reason          String?
+  note            String?
+  createdAt       DateTime @default(now())
+
+  course          Course   @relation(fields: [courseId], references: [id])
+  reviewer        User     @relation("AdminReviews", fields: [reviewerAdminId], references: [id])
+
+  @@index([courseId, createdAt])
+}
+
+model Section {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  title     String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons   Lesson[]
+
+  @@unique([courseId, position])
+}
+
+model Lesson {
+  id              String            @id @default(uuid())
+  sectionId       String
+  section         Section           @relation(fields: [sectionId], references: [id])
+  title           String
+  position        Int
+  contentType     LessonContentType
+  contentText     String?
+  contentImageUrl String?
+  contentFileId   String?            @unique
+
+  contentFile     Attachment? @relation("LessonContentFile", fields: [contentFileId], references: [id])
+  attachments     Attachment[] @relation("LessonAttachments")
+  progress        LessonProgress[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sectionId, position])
+}
+
+model Attachment {
+  id               String          @id @default(uuid())
+  lessonId         String
+  lesson           Lesson          @relation("LessonAttachments", fields: [lessonId], references: [id])
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  sha256           String
+  storageProvider  StorageProvider @default(LOCAL)
+  storageKey       String
+  deletedAt        DateTime?
+  createdAt        DateTime @default(now())
+
+  contentForLesson Lesson? @relation("LessonContentFile")
+
+  @@index([lessonId, createdAt])
+}
+
+model Purchase {
+  id          String   @id @default(uuid())
+  userId      String
+  courseId    String
+  purchasedAt DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([courseId, purchasedAt])
+}
+
+model LessonProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  lessonId    String
+  isCompleted Boolean  @default(true)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+  lesson      Lesson   @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, lessonId])
+  @@index([userId, updatedAt])
+}

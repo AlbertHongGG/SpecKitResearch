@@ -1,0 +1,1542 @@
+openapi: 3.0.3
+info:
+  title: Content Course Platform API
+  version: 0.1.0
+  description: |
+    線上課程平台（非影音串流）REST API（Next.js Route Handlers）。
+
+    存取策略（必須遵守）：
+    - 需要登入但未登入：401（前端導向登入或顯示 401 UI）
+    - 權限不足：403
+    - 需隱藏資源存在性（他人非 published 課程詳情等）：404
+
+servers:
+  - url: /api
+
+tags:
+  - name: Auth
+  - name: Courses
+  - name: Purchases
+  - name: MyCourses
+  - name: Instructor
+  - name: Admin
+  - name: Files
+
+components:
+  securitySchemes:
+    CookieSession:
+      type: apiKey
+      in: cookie
+      name: session
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: 穩定的內部錯誤代碼（供除錯/追蹤）
+              example: AUTH_UNAUTHORIZED
+            message:
+              type: string
+              description: 使用者可理解訊息（不得含敏感資訊）
+              example: 需要登入
+            requestId:
+              type: string
+              description: 伺服器 request id（若有）
+              example: req_01J0...
+            details:
+              type: object
+              additionalProperties: true
+              description: 僅供開發者/日誌使用的詳細資訊（回傳需審慎）
+
+    UserPublic:
+      type: object
+      required: [id, email, role, isActive]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [student, instructor, admin] }
+        isActive: { type: boolean }
+
+    SessionInfo:
+      type: object
+      required: [userId, role, issuedAt, expiresAt]
+      properties:
+        userId: { type: string }
+        role: { type: string, enum: [student, instructor, admin] }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    CourseStatus:
+      type: string
+      enum: [draft, submitted, published, rejected, archived]
+
+    CourseCard:
+      type: object
+      required: [id, title, price, category]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverImageUrl: { type: string, nullable: true }
+        category:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        instructor:
+          type: object
+          required: [id, email]
+          properties:
+            id: { type: string }
+            email: { type: string, format: email }
+
+    CourseOutlineLesson:
+      type: object
+      required: [title, order]
+      properties:
+        title: { type: string }
+        order: { type: integer }
+
+    CourseOutlineSection:
+      type: object
+      required: [title, order, lessons]
+      properties:
+        title: { type: string }
+        order: { type: integer }
+        lessons:
+          type: array
+          items: { $ref: '#/components/schemas/CourseOutlineLesson' }
+
+    CourseMarketing:
+      type: object
+      required: [id, title, description, price, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        coverImageUrl: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/CourseStatus' }
+        category:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        tags:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string }
+              name: { type: string }
+        instructor:
+          type: object
+          required: [id, email]
+          properties:
+            id: { type: string }
+            email: { type: string, format: email }
+
+    ViewerFlags:
+      type: object
+      required: [isAuthenticated, role, isAuthor, isPurchased]
+      properties:
+        isAuthenticated: { type: boolean }
+        role:
+          type: string
+          nullable: true
+          enum: [student, instructor, admin]
+        isAuthor: { type: boolean }
+        isPurchased: { type: boolean }
+
+    LessonContentType:
+      type: string
+      enum: [text, image, pdf]
+
+    LessonReaderItem:
+      type: object
+      required: [id, title, order, contentType, isCompleted]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        order: { type: integer }
+        contentType: { $ref: '#/components/schemas/LessonContentType' }
+        contentText: { type: string, nullable: true }
+        contentImageUrl: { type: string, nullable: true }
+        contentFileUrl: { type: string, nullable: true }
+        contentFileName: { type: string, nullable: true }
+        isCompleted: { type: boolean }
+        completedAt: { type: string, format: date-time, nullable: true }
+
+    SectionReaderItem:
+      type: object
+      required: [id, title, order, lessons]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        order: { type: integer }
+        lessons:
+          type: array
+          items: { $ref: '#/components/schemas/LessonReaderItem' }
+
+    CourseProgressSummary:
+      type: object
+      required: [completedLessons, totalLessons]
+      properties:
+        completedLessons: { type: integer, minimum: 0 }
+        totalLessons: { type: integer, minimum: 0 }
+
+    StatsResponse:
+      type: object
+      required: [counts]
+      properties:
+        counts:
+          type: object
+          required: [usersTotal, purchasesTotal, coursesByStatus]
+          properties:
+            usersTotal: { type: integer, minimum: 0 }
+            purchasesTotal: { type: integer, minimum: 0 }
+            coursesByStatus:
+              type: object
+              required: [draft, submitted, published, rejected, archived]
+              properties:
+                draft: { type: integer, minimum: 0 }
+                submitted: { type: integer, minimum: 0 }
+                published: { type: integer, minimum: 0 }
+                rejected: { type: integer, minimum: 0 }
+                archived: { type: integer, minimum: 0 }
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 註冊（Email + 密碼）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: 註冊成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/UserPublic' }
+        '400':
+          description: 欄位錯誤（Email 已存在/格式錯誤/密碼過短）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登入（建立 Cookie session）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: 登入成功
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session, user]
+                properties:
+                  session: { $ref: '#/components/schemas/SessionInfo' }
+                  user: { $ref: '#/components/schemas/UserPublic' }
+        '401':
+          description: 帳密錯誤
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 帳號停用
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出（清除 Cookie session）
+      security:
+        - CookieSession: []
+      responses:
+        '200':
+          description: 登出成功
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: 未登入/Session 已失效（前端可視為已登出）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/session:
+    get:
+      tags: [Auth]
+      summary: 取得目前 session 狀態（Boot 用）
+      responses:
+        '200':
+          description: 回傳 session 狀態
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authenticated]
+                properties:
+                  authenticated: { type: boolean }
+                  user:
+                    allOf:
+                      - $ref: '#/components/schemas/UserPublic'
+                    nullable: true
+
+  /courses:
+    get:
+      tags: [Courses]
+      summary: 課程列表（只回傳 published 的行銷資訊）
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: tagIds
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: 回傳課程清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CourseCard' }
+        '500':
+          description: 伺服器錯誤
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /courses/{courseId}:
+    get:
+      tags: [Courses]
+      summary: 課程詳情（行銷資訊 + 大綱；非 published 且非作者/管理員 → 404）
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 課程詳情（未購買者不含內容）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [course, outline, viewer]
+                properties:
+                  course: { $ref: '#/components/schemas/CourseMarketing' }
+                  outline:
+                    type: object
+                    required: [sections]
+                    properties:
+                      sections:
+                        type: array
+                        items: { $ref: '#/components/schemas/CourseOutlineSection' }
+                  viewer: { $ref: '#/components/schemas/ViewerFlags' }
+        '404':
+          description: 課程不存在或需隱藏存在性
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /purchases:
+    post:
+      tags: [Purchases]
+      summary: 購買課程（只允許 published；已購買 → 400）
+      security:
+        - CookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseId]
+              properties:
+                courseId: { type: string }
+      responses:
+        '201':
+          description: 購買成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [purchase]
+                properties:
+                  purchase:
+                    type: object
+                    required: [id, userId, courseId, purchasedAt]
+                    properties:
+                      id: { type: string }
+                      userId: { type: string }
+                      courseId: { type: string }
+                      purchasedAt: { type: string, format: date-time }
+        '400':
+          description: 已購買或課程不可購買
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /my-courses:
+    get:
+      tags: [MyCourses]
+      summary: 我的課程（只回傳本人已購買課程 + 進度）
+      security:
+        - CookieSession: []
+      responses:
+        '200':
+          description: 回傳我的課程清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [course, purchasedAt, progress]
+                      properties:
+                        course: { $ref: '#/components/schemas/CourseCard' }
+                        purchasedAt: { type: string, format: date-time }
+                        progress: { $ref: '#/components/schemas/CourseProgressSummary' }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /my-courses/{courseId}:
+    get:
+      tags: [MyCourses]
+      summary: 課程閱讀資料（未購買且非作者且非管理員 → 403）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 回傳課程閱讀 payload（含內容與完成狀態）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [course, sections, progress]
+                properties:
+                  course:
+                    type: object
+                    required: [id, title]
+                    properties:
+                      id: { type: string }
+                      title: { type: string }
+                  sections:
+                    type: array
+                    items: { $ref: '#/components/schemas/SectionReaderItem' }
+                  progress: { $ref: '#/components/schemas/CourseProgressSummary' }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 未購買且非作者且非 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: 課程不存在
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /lessons/{lessonId}/progress:
+    put:
+      tags: [MyCourses]
+      summary: 單元完成標記（冪等）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isCompleted]
+              properties:
+                isCompleted:
+                  type: boolean
+                  enum: [true]
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lessonId, isCompleted, completedAt]
+                properties:
+                  lessonId: { type: string }
+                  isCompleted: { type: boolean }
+                  completedAt: { type: string, format: date-time }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 無權限（未購買/非作者/非 admin）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: 平台統計（僅 admin）
+      security:
+        - CookieSession: []
+      responses:
+        '200':
+          description: 統計資料
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatsResponse' }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /files/{fileId}:
+    get:
+      tags: [Files]
+      summary: 受保護檔案下載/顯示（Lesson image/pdf 等）
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 檔案串流回傳（content-type 依檔案）
+        '401':
+          description: 需要登入（對受保護檔案）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 無權限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: 檔案不存在
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /files/upload:
+    post:
+      tags: [Files]
+      summary: 上傳檔案（僅 instructor/admin；image/* 或 application/pdf）
+      security:
+        - CookieSession: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                ownerCourseId:
+                  type: string
+                  nullable: true
+                ownerLessonId:
+                  type: string
+                  nullable: true
+                isPublic:
+                  type: boolean
+                  nullable: true
+      responses:
+        '200':
+          description: 上傳成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: object
+                    required: [id, url, mimeType, size, originalName, isPublic]
+                    properties:
+                      id: { type: string }
+                      url: { type: string }
+                      mimeType: { type: string }
+                      size: { type: integer, minimum: 0 }
+                      originalName: { type: string }
+                      isPublic: { type: boolean }
+        '400':
+          description: 檔案格式/大小不合法
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 僅 instructor/admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /taxonomy/categories:
+    get:
+      tags: [Courses]
+      summary: 取得可用分類（active）
+      responses:
+        '200':
+          description: 分類清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories]
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, isActive]
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        isActive: { type: boolean }
+
+  /taxonomy/tags:
+    get:
+      tags: [Courses]
+      summary: 取得可用標籤（active）
+      responses:
+        '200':
+          description: 標籤清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tags]
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, isActive]
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        isActive: { type: boolean }
+
+  /instructor/courses:
+    get:
+      tags: [Instructor]
+      summary: 講師課程列表（含非 published；僅作者）
+      security:
+        - CookieSession: []
+      responses:
+        '200':
+          description: 課程清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [courses]
+                properties:
+                  courses:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, status, price, updatedAt, category]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        status: { $ref: '#/components/schemas/CourseStatus' }
+                        price: { type: integer, minimum: 0 }
+                        updatedAt: { type: string, format: date-time }
+                        category:
+                          type: object
+                          required: [id, name]
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 僅 instructor/admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Instructor]
+      summary: 建立課程草稿
+      security:
+        - CookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, categoryId, price]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                categoryId: { type: string }
+                price: { type: integer, minimum: 0 }
+                tagIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [course]
+                properties:
+                  course:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string }
+        '400':
+          description: 欄位錯誤/分類不可用
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 僅 instructor/admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /instructor/courses/{courseId}:
+    get:
+      tags: [Instructor]
+      summary: 取得課程詳細（僅作者/admin；含 tags/category/status）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 課程
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [course]
+                properties:
+                  course:
+                    type: object
+                    required: [id, title, description, price, status, category, tags]
+                    properties:
+                      id: { type: string }
+                      title: { type: string }
+                      description: { type: string }
+                      price: { type: integer, minimum: 0 }
+                      coverImageUrl: { type: string, nullable: true }
+                      status: { $ref: '#/components/schemas/CourseStatus' }
+                      rejectedReason: { type: string, nullable: true }
+                      category:
+                        type: object
+                        required: [id, name]
+                        properties:
+                          id: { type: string }
+                          name: { type: string }
+                      tags:
+                        type: array
+                        items:
+                          type: object
+                          required: [id, name]
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+        '401':
+          description: 需要登入
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: 權限不足
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: 課程不存在
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      tags: [Instructor]
+      summary: 更新課程基本資訊（僅作者；非法狀態/欄位需阻擋）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                categoryId: { type: string }
+                price: { type: integer, minimum: 0 }
+                tagIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '404':
+          description: 課程不存在或需隱藏存在性（非作者）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /instructor/courses/{courseId}/submit:
+    post:
+      tags: [Instructor]
+      summary: 提交審核（draft/rejected → submitted）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 提交成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [course]
+                properties:
+                  course:
+                    type: object
+                    required: [id, status]
+                    properties:
+                      id: { type: string }
+                      status: { $ref: '#/components/schemas/CourseStatus' }
+        '400':
+          description: 非法狀態（非 draft/rejected）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: 課程不存在或需隱藏存在性（非作者）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /instructor/courses/{courseId}/lifecycle:
+    post:
+      tags: [Instructor]
+      summary: 上下架切換（published ↔ archived）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [ARCHIVE, UNARCHIVE]
+      responses:
+        '200':
+          description: 切換成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '400':
+          description: 非法轉換
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: 課程不存在或需隱藏存在性（非作者）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/reviews/pending:
+    get:
+      tags: [Admin]
+      summary: 待審課程清單（submitted；僅 admin）
+      security:
+        - CookieSession: []
+      responses:
+        '200':
+          description: 待審清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [courses]
+                properties:
+                  courses:
+                    type: array
+                    items: { $ref: '#/components/schemas/CourseMarketing' }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/courses/{courseId}/review:
+    post:
+      tags: [Admin]
+      summary: 審核決策（submitted → published/rejected；rejected 必填 reason）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [published, rejected]
+                reason:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: 審核完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '400':
+          description: 非 submitted 或 rejected 未填 reason
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/taxonomy/categories:
+    post:
+      tags: [Admin]
+      summary: 建立或更新分類（admin）
+      security:
+        - CookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                id: { type: string }
+                name: { type: string }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category]
+                properties:
+                  category:
+                    type: object
+                    required: [id, name, isActive]
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      isActive: { type: boolean }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/taxonomy/tags:
+    post:
+      tags: [Admin]
+      summary: 建立或更新標籤（admin）
+      security:
+        - CookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                id: { type: string }
+                name: { type: string }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tag]
+                properties:
+                  tag:
+                    type: object
+                    required: [id, name, isActive]
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      isActive: { type: boolean }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: 使用者列表（admin）
+      security:
+        - CookieSession: []
+      responses:
+        '200':
+          description: 使用者清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users]
+                properties:
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, email, role, isActive, createdAt]
+                      properties:
+                        id: { type: string }
+                        email: { type: string, format: email }
+                        role: { type: string, enum: [student, instructor, admin] }
+                        isActive: { type: boolean }
+                        createdAt: { type: string, format: date-time }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      tags: [Admin]
+      summary: 更新使用者 role/isActive（admin）
+      security:
+        - CookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+                role: { type: string, enum: [student, instructor, admin] }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /instructor/courses/{courseId}/sections:
+    get:
+      tags: [Instructor]
+      summary: 取得課綱（章節/單元；作者/admin）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 課綱
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sections]
+                properties:
+                  sections:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, order, lessons]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        order: { type: integer }
+                        lessons:
+                          type: array
+                          items:
+                            type: object
+                            required: [id, title, order, contentType]
+                            properties:
+                              id: { type: string }
+                              title: { type: string }
+                              order: { type: integer }
+                              contentType: { $ref: '#/components/schemas/LessonContentType' }
+                              contentText: { type: string, nullable: true }
+                              contentFileId: { type: string, nullable: true }
+                              contentFileName: { type: string, nullable: true }
+        '403':
+          description: 權限不足
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Instructor]
+      summary: 新增章節（submitted 期間不可）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [section]
+                properties:
+                  section:
+                    type: object
+                    required: [id, title, order]
+                    properties:
+                      id: { type: string }
+                      title: { type: string }
+                      order: { type: integer }
+
+  /instructor/courses/{courseId}/sections/{sectionId}:
+    patch:
+      tags: [Instructor]
+      summary: 更新章節標題（submitted 期間不可）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+    delete:
+      tags: [Instructor]
+      summary: 刪除章節（submitted 期間不可；會連帶刪除單元）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: courseId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /instructor/sections/{sectionId}/reorder:
+    post:
+      tags: [Instructor]
+      summary: 章節排序（submitted 期間不可）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /instructor/sections/{sectionId}/lessons:
+    get:
+      tags: [Instructor]
+      summary: 章節單元列表（作者/admin）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 單元清單
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lessons]
+                properties:
+                  lessons:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, order, contentType]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        order: { type: integer }
+                        contentType: { $ref: '#/components/schemas/LessonContentType' }
+                        contentText: { type: string, nullable: true }
+                        contentFileId: { type: string, nullable: true }
+                        contentFileName: { type: string, nullable: true }
+    post:
+      tags: [Instructor]
+      summary: 新增單元（submitted 期間不可）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, contentType]
+              properties:
+                title: { type: string }
+                contentType: { $ref: '#/components/schemas/LessonContentType' }
+                contentText: { type: string }
+                contentFileId: { type: string }
+                contentFileName: { type: string }
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lesson]
+                properties:
+                  lesson:
+                    type: object
+                    required: [id, title, order]
+                    properties:
+                      id: { type: string }
+                      title: { type: string }
+                      order: { type: integer }
+
+  /instructor/sections/{sectionId}/lessons/{lessonId}:
+    patch:
+      tags: [Instructor]
+      summary: 更新單元（submitted 期間不可；互斥欄位 server 強制）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                contentType: { $ref: '#/components/schemas/LessonContentType' }
+                contentText: { type: string, nullable: true }
+                contentFileId: { type: string, nullable: true }
+                contentFileName: { type: string, nullable: true }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+    delete:
+      tags: [Instructor]
+      summary: 刪除單元（submitted 期間不可）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: sectionId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /instructor/lessons/{lessonId}/reorder:
+    post:
+      tags: [Instructor]
+      summary: 單元排序（submitted 期間不可）
+      security:
+        - CookieSession: []
+      parameters:
+        - in: path
+          name: lessonId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '403':
+          description: 僅 admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }

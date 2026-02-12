@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  User
+  Reviewer
+  Admin
+}
+
+enum DocumentStatus {
+  Draft
+  Submitted
+  InReview
+  Rejected
+  Approved
+  Archived
+}
+
+enum DocumentVersionKind {
+  Draft
+  SubmittedSnapshot
+}
+
+enum StepMode {
+  Serial
+  Parallel
+}
+
+enum ReviewTaskStatus {
+  Pending
+  Approved
+  Rejected
+  Cancelled
+}
+
+enum ApprovalAction {
+  Approved
+  Rejected
+}
+
+model User {
+  id           String           @id @default(uuid())
+  email        String           @unique
+  passwordHash String           @map("password_hash")
+  role         Role
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  documents      Document[]       @relation("OwnerDocuments")
+  reviewTasks    ReviewTask[]     @relation("TaskAssignee")
+  stepAssignments ApprovalFlowStepAssignee[] @relation("StepAssigneeReviewer")
+  approvalRecord ApprovalRecord[] @relation("ApprovalActor")
+  auditLogs      AuditLog[]       @relation("AuditActor")
+
+  @@map("User")
+}
+
+model Document {
+  id               String          @id @default(uuid())
+  title            String
+  status           DocumentStatus
+  ownerId          String          @map("owner_id")
+  currentVersionId String?         @unique @map("current_version_id")
+  flowTemplateId   String?         @map("flow_template_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  owner          User              @relation("OwnerDocuments", fields: [ownerId], references: [id], onDelete: Restrict)
+  currentVersion DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  flowTemplate   ApprovalFlowTemplate? @relation(fields: [flowTemplateId], references: [id], onDelete: Restrict)
+
+  versions       DocumentVersion[]
+  reviewTasks    ReviewTask[]
+  approvalRecord ApprovalRecord[]
+
+  @@map("Document")
+}
+
+model DocumentVersion {
+  id         String              @id @default(uuid())
+  documentId String              @map("document_id")
+  versionNo  Int                 @map("version_no")
+  content    String
+  kind       DocumentVersionKind
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  document       Document      @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  attachments    Attachment[]
+  reviewTasks    ReviewTask[]
+  approvalRecord ApprovalRecord[]
+  currentOf      Document?      @relation("CurrentVersion")
+
+  @@unique([documentId, versionNo], name: "uniq_doc_version_no")
+  @@map("DocumentVersion")
+}
+
+model Attachment {
+  id               String   @id @default(uuid())
+  documentVersionId String  @map("document_version_id")
+  filename         String
+  contentType      String   @map("content_type")
+  sizeBytes        Int      @map("size_bytes")
+  storageKey       String   @map("storage_key")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+
+  @@map("Attachment")
+}
+
+model ApprovalFlowTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  steps     ApprovalFlowStep[]
+  documents Document[]
+
+  @@map("ApprovalFlowTemplate")
+}
+
+model ApprovalFlowStep {
+  id         String   @id @default(uuid())
+  templateId String   @map("template_id")
+  stepKey    String   @map("step_key")
+  orderIndex Int      @map("order_index")
+  mode       StepMode
+
+  template   ApprovalFlowTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  assignees  ApprovalFlowStepAssignee[]
+
+  @@unique([templateId, stepKey], name: "uniq_step_key_per_template")
+  @@unique([templateId, orderIndex], name: "uniq_step_order_per_template")
+  @@map("ApprovalFlowStep")
+}
+
+model ApprovalFlowStepAssignee {
+  id         String @id @default(uuid())
+  stepId     String @map("step_id")
+  reviewerId String @map("reviewer_id")
+
+  step     ApprovalFlowStep @relation(fields: [stepId], references: [id], onDelete: Restrict)
+  reviewer User             @relation("StepAssigneeReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@unique([stepId, reviewerId], name: "uniq_step_reviewer")
+  @@map("ApprovalFlowStepAssignee")
+}
+
+model ReviewTask {
+  id               String         @id @default(uuid())
+  documentId       String         @map("document_id")
+  documentVersionId String        @map("document_version_id")
+  assigneeId       String         @map("assignee_id")
+  stepKey          String         @map("step_key")
+  mode             StepMode
+  status           ReviewTaskStatus
+  actedAt          DateTime?      @map("acted_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  document        Document        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  assignee        User            @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+
+  approvalRecord ApprovalRecord?
+
+  @@unique([documentVersionId, assigneeId, stepKey], name: "uniq_task_per_version_assignee_step")
+  @@index([assigneeId, status])
+  @@map("ReviewTask")
+}
+
+model ApprovalRecord {
+  id               String         @id @default(uuid())
+  documentId       String         @map("document_id")
+  documentVersionId String        @map("document_version_id")
+  reviewTaskId     String         @unique @map("review_task_id")
+  actorId          String         @map("actor_id")
+  action           ApprovalAction
+  reason           String?
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  document        Document        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  reviewTask      ReviewTask      @relation(fields: [reviewTaskId], references: [id], onDelete: Restrict)
+  actor           User            @relation("ApprovalActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@map("ApprovalRecord")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String   @map("actor_id")
+  action       String
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id")
+  requestId    String   @map("request_id")
+  metadataJson String   @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([entityType, entityId, requestId], name: "uniq_audit_dedupe")
+  @@index([entityType, entityId])
+  @@map("AuditLog")
+}

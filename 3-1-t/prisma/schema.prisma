@@ -1,0 +1,339 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  PARTIALLY_SHIPPED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum SubOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum RefundRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+enum SellerApplicationStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum SettlementStatus {
+  PENDING
+  SETTLED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  products      Product[]
+  cart          Cart?
+  orders        Order[]
+  reviews       Review[]
+  sessions      Session[]
+  applications  SellerApplication[]
+  settlements   Settlement[]
+  disputes      DisputeCase[] @relation("DisputeBuyer")
+
+  roleAssignments UserRoleAssignment[]
+  subOrders       SubOrder[]
+  refundRequests  RefundRequest[]
+
+  auditLogs     AuditLog[] @relation("AuditActor")
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      UserRole
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Category {
+  id        String         @id @default(cuid())
+  name      String
+  status    CategoryStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  products Product[]
+
+  @@index([status])
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      User          @relation(fields: [sellerId], references: [id])
+  categoryId  String?
+  category    Category?     @relation(fields: [categoryId], references: [id])
+  status      ProductStatus @default(DRAFT)
+  name        String
+  description String
+  priceCents  Int
+  stock       Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  cartItems   CartItem[]
+  subItems    SubOrderItem[]
+  reviews     Review[]
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([status])
+}
+
+model Cart {
+  id        String    @id @default(cuid())
+  buyerId   String    @unique
+  buyer     User      @relation(fields: [buyerId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([productId])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  buyerId     String
+  buyer       User        @relation(fields: [buyerId], references: [id])
+  status      OrderStatus @default(CREATED)
+  totalCents  Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  subOrders   SubOrder[]
+  payments    Payment[]
+  disputes    DisputeCase[]
+
+  @@index([buyerId])
+  @@index([status])
+}
+
+model SubOrder {
+  id          String        @id @default(cuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sellerId    String
+  seller      User          @relation(fields: [sellerId], references: [id])
+  status      SubOrderStatus @default(PENDING_PAYMENT)
+  prevStatus  SubOrderStatus?
+  subtotalCents Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  items       SubOrderItem[]
+  refundRequests RefundRequest[]
+
+  @@index([orderId])
+  @@index([sellerId])
+  @@index([status])
+}
+
+model SubOrderItem {
+  id         String   @id @default(cuid())
+  subOrderId String
+  subOrder   SubOrder @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  unitPriceCents Int
+  quantity   Int
+
+  @@index([productId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  amountCents   Int
+  occurredAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@unique([orderId, transactionId])
+}
+
+model RefundRequest {
+  id            String              @id @default(cuid())
+  subOrderId    String
+  subOrder      SubOrder            @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  buyerId       String
+  buyer         User                @relation(fields: [buyerId], references: [id])
+  prevSubOrderStatus SubOrderStatus
+  status        RefundRequestStatus @default(REQUESTED)
+  reason        String
+  requestedCents Int
+  approvedCents  Int?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([subOrderId])
+  @@index([buyerId])
+  @@index([status])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyerId   String
+  buyer     User     @relation(fields: [buyerId], references: [id])
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+
+  @@unique([productId, buyerId])
+  @@index([buyerId])
+}
+
+model SellerApplication {
+  id        String                  @id @default(cuid())
+  userId    String
+  user      User                    @relation(fields: [userId], references: [id])
+  shopName  String
+  status    SellerApplicationStatus @default(SUBMITTED)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Settlement {
+  id           String          @id @default(cuid())
+  sellerId     String
+  seller       User            @relation(fields: [sellerId], references: [id])
+  periodStart  DateTime
+  periodEnd    DateTime
+  grossCents   Int
+  platformFeeCents Int
+  netCents     Int
+  status       SettlementStatus @default(PENDING)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+model DisputeCase {
+  id             String        @id @default(cuid())
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  buyerId        String
+  buyer          User          @relation("DisputeBuyer", fields: [buyerId], references: [id])
+  status         DisputeStatus @default(OPEN)
+  resolutionNote String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+  actorRole  String
+  action     String
+  targetType String
+  targetId   String
+  metadata   String
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([targetType, targetId])
+}

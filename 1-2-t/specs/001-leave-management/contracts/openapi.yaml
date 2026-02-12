@@ -1,0 +1,518 @@
+openapi: 3.0.3
+info:
+  title: Leave Management System API
+  version: 0.1.0
+  description: |
+    Leave management REST API (MVP). Error semantics follow the spec:
+    - 401 unauthenticated/session expired
+    - 403 forbidden (role/scope)
+    - 404 not found
+    - 409 conflict (state machine violation, date overlap)
+    - 422 validation failed
+servers:
+  - url: http://localhost:3000
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Stable internal error code.
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required: [code, message]
+
+    UserSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [employee, manager] }
+        department_id: { type: string, format: uuid }
+        manager_id: { type: string, format: uuid, nullable: true }
+      required: [id, name, email, role, department_id]
+
+    LeaveType:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        annual_quota: { type: number }
+        carry_over: { type: boolean }
+        require_attachment: { type: boolean }
+        is_active: { type: boolean }
+      required: [id, name, annual_quota, carry_over, require_attachment, is_active]
+
+    LeaveRequestStatus:
+      type: string
+      enum: [draft, submitted, approved, rejected, cancelled]
+
+    LeaveRequestListItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        leave_type: { $ref: '#/components/schemas/LeaveType' }
+        start_date: { type: string, example: '2026-01-31' }
+        end_date: { type: string, example: '2026-02-02' }
+        days: { type: number }
+        status: { $ref: '#/components/schemas/LeaveRequestStatus' }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        decided_at: { type: string, format: date-time, nullable: true }
+      required: [id, leave_type, start_date, end_date, days, status]
+
+    LeaveRequestDetail:
+      allOf:
+        - $ref: '#/components/schemas/LeaveRequestListItem'
+        - type: object
+          properties:
+            user: { $ref: '#/components/schemas/UserSummary' }
+            reason: { type: string }
+            attachment_url: { type: string, nullable: true }
+            approver: { $ref: '#/components/schemas/UserSummary' }
+            rejection_reason: { type: string, nullable: true }
+            cancelled_at: { type: string, format: date-time, nullable: true }
+
+    Attachment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        original_filename: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer }
+      required: [id, original_filename, mime_type, size_bytes]
+
+    LeaveBalanceItem:
+      type: object
+      properties:
+        leave_type: { $ref: '#/components/schemas/LeaveType' }
+        quota: { type: number }
+        used: { type: number }
+        reserved: { type: number }
+        available: { type: number }
+      required: [leave_type, quota, used, reserved, available]
+
+    DepartmentCalendarEvent:
+      type: object
+      properties:
+        leave_request_id: { type: string, format: uuid }
+        employee:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+          required: [id, name]
+        start_date: { type: string, example: '2026-01-31' }
+        end_date: { type: string, example: '2026-02-02' }
+        days: { type: number }
+        status: { $ref: '#/components/schemas/LeaveRequestStatus' }
+      required: [leave_request_id, employee, start_date, end_date, days, status]
+
+  responses:
+    Unauthorized:
+      description: Unauthenticated or session expired
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Forbidden (role/scope)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Conflict (state violation or overlap)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationFailed:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+security:
+  - cookieAuth: []
+
+paths:
+  /session:
+    get:
+      summary: Get current session
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Session restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/UserSummary' }
+                required: [user]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/login:
+    post:
+      summary: Login (email + password)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+              required: [email, password]
+      responses:
+        '200':
+          description: Login success; sets HttpOnly cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/UserSummary' }
+                required: [user]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      summary: Logout
+      responses:
+        '200':
+          description: Logout success; clears cookie
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /leave-types:
+    get:
+      summary: List active leave types
+      responses:
+        '200':
+          description: Leave types
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LeaveType' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /leave-requests:
+    get:
+      summary: List my leave requests
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/LeaveRequestStatus' }
+        - in: query
+          name: leaveTypeId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: start
+          description: Filter by date (YYYY-MM-DD)
+          schema: { type: string }
+        - in: query
+          name: end
+          description: Filter by date (YYYY-MM-DD)
+          schema: { type: string }
+        - in: query
+          name: sort
+          schema: { type: string, example: 'start_date_desc' }
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LeaveRequestListItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      summary: Create leave request draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leave_type_id: { type: string, format: uuid }
+                start_date: { type: string, example: '2026-01-31' }
+                end_date: { type: string, example: '2026-02-02' }
+                reason: { type: string }
+                attachment_id: { type: string, format: uuid, nullable: true }
+                attachment_url: { type: string, nullable: true, description: 'Legacy; prefer attachment_id' }
+              required: [leave_type_id, start_date, end_date, reason]
+      responses:
+        '200':
+          description: Created draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /leave-requests/pending-approvals:
+    get:
+      summary: List pending approvals (manager only)
+      parameters:
+        - in: query
+          name: employeeId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: leaveTypeId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: start
+          schema: { type: string }
+        - in: query
+          name: end
+          schema: { type: string }
+      responses:
+        '200':
+          description: List in-scope submitted requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LeaveRequestListItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /leave-requests/{id}:
+    get:
+      summary: Get leave request detail (owner or in-scope approver)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+    patch:
+      summary: Update leave request (draft only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leave_type_id: { type: string, format: uuid }
+                start_date: { type: string }
+                end_date: { type: string }
+                reason: { type: string }
+                attachment_url: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Updated draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /leave-requests/{id}/submit:
+    post:
+      summary: Submit leave request (draft -> submitted)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /leave-requests/{id}/cancel:
+    post:
+      summary: Cancel leave request (submitted -> cancelled)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /leave-requests/{id}/approve:
+    post:
+      summary: Approve leave request (submitted -> approved)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /leave-requests/{id}/reject:
+    post:
+      summary: Reject leave request (submitted -> rejected)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+              required: [reason]
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeaveRequestDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /leave-balance:
+    get:
+      summary: Get my leave balance for a year
+      parameters:
+        - in: query
+          name: year
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Balance
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LeaveBalanceItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /department-calendar:
+    get:
+      summary: Get department calendar (manager only)
+      parameters:
+        - in: query
+          name: month
+          required: true
+          schema: { type: string, example: '2026-01' }
+        - in: query
+          name: includeSubmitted
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DepartmentCalendarEvent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /attachments:
+    post:
+      summary: Upload attachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        '200':
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /attachments/{id}:
+    get:
+      summary: Download attachment (owner or in-scope manager)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: File stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }

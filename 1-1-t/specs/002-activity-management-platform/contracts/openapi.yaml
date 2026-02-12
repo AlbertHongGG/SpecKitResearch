@@ -1,0 +1,692 @@
+openapi: 3.0.3
+info:
+  title: Activity Management Platform API
+  version: 0.1.0
+  description: |
+    REST API contract for the Activity Management Platform.
+
+    - Single source of truth: server-enforced auth/roles/state machines
+    - Consistency: no oversell, no duplicate active registrations
+servers:
+  - url: http://localhost:3000
+
+tags:
+  - name: Auth
+  - name: Activities
+  - name: Registrations
+  - name: Me
+  - name: Admin
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (client discards JWT)
+      responses:
+        '204':
+          description: No Content
+
+  /me:
+    get:
+      tags: [Me]
+      summary: Get current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /activities:
+    get:
+      tags: [Activities]
+      summary: List visible activities (member view)
+      description: Returns only activities with status published or full.
+      security: []
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+          description: Optional filter for activities on/after a time
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivityListItem'
+
+  /activities/{activityId}:
+    get:
+      tags: [Activities]
+      summary: Get activity detail
+      security: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetail'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /activities/{activityId}/registrations:
+    post:
+      tags: [Registrations]
+      summary: Register for an activity (member)
+      description: |
+        Idempotent for the same user+activity: repeated calls MUST NOT create duplicate active registrations.
+        Fails when activity is not published, is full/closed/archived/draft, past deadline, or ended.
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Optional idempotency key for retry safety (client-generated)
+      responses:
+        '200':
+          description: Registered (including idempotent replays)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResult'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Activity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Not allowed / full / closed / state conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /activities/{activityId}/registrations/me:
+    delete:
+      tags: [Registrations]
+      summary: Cancel registration (member)
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResult'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Activity/registration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Not allowed (past deadline/ended/state)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /me/activities:
+    get:
+      tags: [Me]
+      summary: List my registered activities
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MyActivityItem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/activities:
+    get:
+      tags: [Admin]
+      summary: Admin list activities (includes all statuses)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivityAdminItem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Admin]
+      summary: Create activity (draft)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivityCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/activities/{activityId}:
+    patch:
+      tags: [Admin]
+      summary: Update activity fields
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivityUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/activities/{activityId}/transitions:
+    post:
+      tags: [Admin]
+      summary: Transition activity status (publish/close/archive/unpublish)
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivityTransitionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/activities/{activityId}/registrations:
+    get:
+      tags: [Admin]
+      summary: List registrations for an activity
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: includeCancelled
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminRegistrationItem'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/activities/{activityId}/registrations.csv:
+    get:
+      tags: [Admin]
+      summary: Export registrations as CSV
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable error code (e.g., AUTH_REQUIRED, FORBIDDEN, NOT_FOUND, FULL, DEADLINE_PASSED)
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      required: [id, name, email, role, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum: [member, admin]
+        createdAt: { type: string, format: date-time }
+
+    ActivityStatus:
+      type: string
+      enum: [draft, published, full, closed, archived]
+
+    Activity:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - date
+        - deadline
+        - location
+        - capacity
+        - registeredCount
+        - status
+        - createdByUserId
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        date: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        location: { type: string }
+        capacity: { type: integer, minimum: 1 }
+        registeredCount: { type: integer, minimum: 0 }
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+        createdByUserId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    RegistrationStatus:
+      type: string
+      enum: [can_register, registered, full, closed, ended, auth_required]
+
+    ActivityListItem:
+      type: object
+      required: [activity, registrationStatus]
+      properties:
+        activity:
+          $ref: '#/components/schemas/Activity'
+        registrationStatus:
+          $ref: '#/components/schemas/RegistrationStatus'
+
+    ActivityDetail:
+      allOf:
+        - $ref: '#/components/schemas/Activity'
+        - type: object
+          required: [registrationStatus]
+          properties:
+            registrationStatus:
+              $ref: '#/components/schemas/RegistrationStatus'
+
+    MyActivityItem:
+      type: object
+      required: [activity, userStatus]
+      properties:
+        activity:
+          $ref: '#/components/schemas/Activity'
+        userStatus:
+          type: string
+          enum: [upcoming, ended]
+
+    ActivityAdminItem:
+      allOf:
+        - $ref: '#/components/schemas/Activity'
+
+    ActivityCreateRequest:
+      type: object
+      required: [title, description, date, deadline, location, capacity]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        date: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        location: { type: string }
+        capacity: { type: integer, minimum: 1 }
+
+    ActivityUpdateRequest:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        date: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        location: { type: string }
+        capacity: { type: integer, minimum: 1 }
+
+    ActivityTransitionRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [publish, close, archive, unpublish]
+
+    RegistrationResult:
+      type: object
+      required: [activityId, registeredCount, capacity, status, registration]
+      properties:
+        activityId: { type: string }
+        registeredCount: { type: integer }
+        capacity: { type: integer }
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+        registration:
+          $ref: '#/components/schemas/Registration'
+
+    Registration:
+      type: object
+      required: [id, userId, activityId, createdAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        activityId: { type: string }
+        createdAt: { type: string, format: date-time }
+        canceledAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AdminRegistrationItem:
+      type: object
+      required: [userId, name, email, registeredAt]
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        registeredAt: { type: string, format: date-time }
+        canceledAt:
+          type: string
+          format: date-time
+          nullable: true

@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectVisibility {
+  private
+  shared
+}
+
+enum ArchiveStatus {
+  active
+  archived
+}
+
+enum MembershipRole {
+  owner
+  admin
+  member
+  viewer
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  rejected
+  revoked
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  blocked
+  done
+  archived
+}
+
+enum RefreshSessionStatus {
+  active
+  revoked
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  ownedProjects Project[]          @relation("ProjectOwner")
+  memberships   ProjectMembership[]
+  invitationsSent ProjectInvitation[] @relation("InvitedBy")
+  tasksCreated  Task[]             @relation("TaskCreatedBy")
+  taskAssignments TaskAssignee[]
+  comments      Comment[]
+  activityLogs  ActivityLog[]
+  refreshSessions RefreshSession[]
+  idempotencyKeys IdempotencyKey[]
+}
+
+model Project {
+  id          String            @id @default(uuid())
+  version     Int               @default(1)
+  name        String
+  description String?
+  ownerId     String            @map("owner_id")
+  owner       User              @relation("ProjectOwner", fields: [ownerId], references: [id])
+  visibility  ProjectVisibility @default(private)
+  status      ArchiveStatus     @default(active)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  memberships  ProjectMembership[]
+  invitations  ProjectInvitation[]
+  boards       Board[]
+  tasks        Task[]
+  activityLogs ActivityLog[]
+
+  @@index([ownerId])
+}
+
+model ProjectMembership {
+  id        String         @id @default(uuid())
+  projectId String         @map("project_id")
+  userId    String         @map("user_id")
+  version   Int            @default(1)
+  role      MembershipRole
+  joinedAt  DateTime       @default(now()) @map("joined_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model ProjectInvitation {
+  id            String           @id @default(uuid())
+  projectId     String           @map("project_id")
+  email         String
+  invitedRole   MembershipRole   @map("invited_role")
+  status        InvitationStatus @default(pending)
+  invitedByUserId String         @map("invited_by_user_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  respondedAt   DateTime?        @map("responded_at")
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitedBy  User    @relation("InvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, status])
+  @@index([email])
+}
+
+model Board {
+  id        String        @id @default(uuid())
+  projectId String        @map("project_id")
+  version   Int           @default(1)
+  name      String
+  order     Int
+  status    ArchiveStatus @default(active)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lists   List[]
+  tasks   Task[]
+
+  @@index([projectId, order])
+}
+
+model List {
+  id           String        @id @default(uuid())
+  boardId      String        @map("board_id")
+  version      Int           @default(1)
+  title        String
+  order        Int
+  status       ArchiveStatus @default(active)
+  isWipLimited Boolean       @default(false) @map("is_wip_limited")
+  wipLimit     Int?          @map("wip_limit")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([boardId, order])
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  projectId       String     @map("project_id")
+  boardId         String     @map("board_id")
+  listId          String     @map("list_id")
+  title           String
+  description     String?
+  dueDate         DateTime?  @map("due_date")
+  priority        Int?
+  position        String
+  status          TaskStatus @default(open)
+  version         Int        @default(1)
+  createdByUserId String     @map("created_by_user_id")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  board     Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list      List    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("TaskCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  assignees TaskAssignee[]
+  comments  Comment[]
+
+  @@unique([listId, position])
+  @@index([listId, position])
+  @@index([projectId, updatedAt])
+}
+
+model TaskAssignee {
+  taskId     String   @map("task_id")
+  userId     String   @map("user_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  authorId  String   @map("author_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  actorId    String   @map("actor_id")
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  action     String
+  timestamp  DateTime @default(now())
+  metadata   Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User    @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, timestamp(sort: Desc)])
+}
+
+model RefreshSession {
+  id                   String              @id @default(uuid())
+  userId               String              @map("user_id")
+  refreshTokenHash     String              @unique @map("refresh_token_hash")
+  status               RefreshSessionStatus @default(active)
+  createdAt            DateTime            @default(now()) @map("created_at")
+  expiresAt            DateTime            @map("expires_at")
+  lastUsedAt           DateTime?           @map("last_used_at")
+  rotatedFromSessionId String?             @map("rotated_from_session_id")
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotatedFrom RefreshSession? @relation("RefreshSessionRotation", fields: [rotatedFromSessionId], references: [id])
+  rotatedTo   RefreshSession[] @relation("RefreshSessionRotation")
+
+  @@index([userId, status])
+}
+
+model IdempotencyKey {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  scope     String
+  key       String
+  createdAt DateTime @default(now()) @map("created_at")
+  response  Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scope, key])
+  @@index([userId, createdAt])
+}

@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  role         String  @default("user")
+  isBanned     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  threads Thread[]
+  posts   Post[]
+
+  reportsAuthored Report[]   @relation("ReportReporter")
+  likes           Like[]
+  favorites       Favorite[]
+
+  moderatorAssignments ModeratorAssignment[]
+  sessions             Session[]
+
+  auditLogs       AuditLog[] @relation("AuditActor")
+  resolvedReports Report[]   @relation("ReportResolver")
+}
+
+model Board {
+  id          String  @id @default(cuid())
+  name        String
+  description String
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  threads              Thread[]
+  moderatorAssignments ModeratorAssignment[]
+
+  @@unique([name])
+  @@index([sortOrder])
+}
+
+model ModeratorAssignment {
+  id      String @id @default(cuid())
+  boardId String
+  userId  String
+
+  createdAt DateTime @default(now())
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+}
+
+model Thread {
+  id         String  @id @default(cuid())
+  boardId    String
+  authorId   String
+  title      String
+  content    String
+  status     String  @default("draft")
+  isPinned   Boolean @default(false)
+  isFeatured Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board  Board @relation(fields: [boardId], references: [id], onDelete: Restrict)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  posts     Post[]
+  favorites Favorite[]
+
+  @@index([boardId, isPinned, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Post {
+  id       String @id @default(cuid())
+  threadId String
+  authorId String
+  content  String
+  status   String @default("visible")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([threadId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Report {
+  id         String @id @default(cuid())
+  reporterId String
+  targetType String
+  targetId   String
+  reason     String
+  status     String @default("pending")
+
+  resolvedById String?
+  resolvedAt   DateTime?
+  note         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter   User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  resolvedBy User? @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+model Like {
+  id         String @id @default(cuid())
+  userId     String
+  targetType String
+  targetId   String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+}
+
+model Favorite {
+  id       String @id @default(cuid())
+  userId   String
+  threadId String
+
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId])
+}
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  metadata   String  @default("{}")
+  ip         String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+}
+
+model Session {
+  id         String   @id
+  userId     String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  ip         String?
+  userAgent  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}

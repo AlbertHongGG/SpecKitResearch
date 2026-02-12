@@ -1,0 +1,2829 @@
+openapi: 3.0.3
+info:
+  title: Marketplace Platform API
+  version: 0.1.0
+  description: |
+    Multi-vendor Marketplace REST API.
+
+    Notes:
+    - All API routes are prefixed with `/api`.
+    - Error responses use a consistent envelope: `{ requestId, error: { code, message, details? } }`.
+    - Auth uses server-side sessions via HttpOnly cookie (`sid` by default).
+
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: Auth
+  - name: Catalog
+  - name: Cart
+  - name: Checkout
+  - name: Orders
+  - name: Payments
+  - name: Refunds
+  - name: Reviews
+  - name: Seller
+  - name: Admin
+
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: sid
+  schemas:
+    ErrorCode:
+      type: string
+      enum: [UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION_FAILED, RATE_LIMITED, INTERNAL_ERROR]
+
+    ErrorResponse:
+      type: object
+      required: [requestId, error]
+      properties:
+        requestId:
+          type: string
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string }
+            details:
+              nullable: true
+
+    Role:
+      type: string
+      enum: [buyer, seller, admin]
+
+    AuthUser:
+      type: object
+      required: [id, email, roles]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+
+    Category:
+      type: object
+      required: [id, name, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProductStatus:
+      type: string
+      enum: [draft, active, inactive, banned]
+
+    Product:
+      type: object
+      required: [id, sellerId, title, description, price, stock, categoryId, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        sellerId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        price:
+          type: integer
+          description: Money (smallest currency unit)
+        stock: { type: integer, minimum: 0 }
+        categoryId: { type: string }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CartItem:
+      type: object
+      required: [productId, quantity, product]
+      properties:
+        productId: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        product: { $ref: '#/components/schemas/Product' }
+
+    OrderStatus:
+      type: string
+      enum: [created, paid, partially_shipped, completed, cancelled, refunded]
+
+    SubOrderStatus:
+      type: string
+      enum: [pending_payment, paid, shipped, delivered, cancelled, refund_requested, refunded]
+
+    SubOrderItem:
+      type: object
+      required: [id, subOrderId, productId, unitPriceSnapshot, quantity]
+      properties:
+        id: { type: string }
+        subOrderId: { type: string }
+        productId: { type: string }
+        unitPriceSnapshot: { type: integer }
+        quantity: { type: integer, minimum: 1 }
+
+    SubOrder:
+      type: object
+      required: [id, orderId, sellerId, subtotal, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        sellerId: { type: string }
+        subtotal: { type: integer }
+        status: { $ref: '#/components/schemas/SubOrderStatus' }
+        refundRequestedPrevStatus:
+          type: string
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SubOrderItem' }
+
+    PaymentStatus:
+      type: string
+      enum: [pending, succeeded, failed, cancelled]
+
+    Payment:
+      type: object
+      required: [id, orderId, paymentMethod, paymentStatus, transactionId, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        paymentMethod: { type: string }
+        paymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+        transactionId: { type: string }
+        callbackReceivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Order:
+      type: object
+      required: [id, buyerId, totalAmount, status, createdAt, updatedAt, subOrders, payments]
+      properties:
+        id: { type: string }
+        buyerId: { type: string }
+        totalAmount: { type: integer }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        subOrders:
+          type: array
+          items: { $ref: '#/components/schemas/SubOrder' }
+        payments:
+          type: array
+          items: { $ref: '#/components/schemas/Payment' }
+
+    RefundRequestStatus:
+      type: string
+      enum: [requested, approved, rejected, refunded]
+
+    RefundRequest:
+      type: object
+      required:
+        [id, orderId, subOrderId, buyerId, reason, requestedAmount, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        subOrderId: { type: string }
+        buyerId: { type: string }
+        reason: { type: string }
+        requestedAmount: { type: integer }
+        approvedAmount:
+          type: integer
+          nullable: true
+        status: { $ref: '#/components/schemas/RefundRequestStatus' }
+        prevSubOrderStatus:
+          type: string
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Review:
+      type: object
+      required: [id, buyerId, productId, rating, comment, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        buyerId: { type: string }
+        productId: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SellerApplicationStatus:
+      type: string
+      enum: [submitted, approved, rejected]
+
+    SellerApplication:
+      type: object
+      required: [id, userId, shopName, status, createdAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        shopName: { type: string }
+        status: { $ref: '#/components/schemas/SellerApplicationStatus' }
+        createdAt: { type: string, format: date-time }
+
+    SettlementStatus:
+      type: string
+      enum: [pending, settled]
+
+    Settlement:
+      type: object
+      required: [id, sellerId, period, grossAmount, platformFee, netAmount, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        sellerId: { type: string }
+        period: { type: string }
+        grossAmount: { type: integer }
+        platformFee: { type: integer }
+        netAmount: { type: integer }
+        status: { $ref: '#/components/schemas/SettlementStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    DisputeStatus:
+      type: string
+      enum: [open, resolved]
+
+    DisputeCase:
+      type: object
+      required: [id, orderId, openedBy, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        subOrderId:
+          type: string
+          nullable: true
+        openedBy:
+          type: string
+          enum: [buyer, seller, admin]
+        status: { $ref: '#/components/schemas/DisputeStatus' }
+        resolutionNote:
+          type: string
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      required: [id, actorUserId, actorRole, action, targetType, targetId, createdAt]
+      properties:
+        id: { type: string }
+        actorUserId: { type: string }
+        actorRole: { type: string }
+        action: { type: string }
+        targetType: { type: string }
+        targetId: { type: string }
+        createdAt: { type: string, format: date-time }
+        metadata:
+          nullable: true
+
+paths:
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Sign up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthUser' }
+        '409':
+          description: Conflict (email exists)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login (sets session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: Created
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: Session cookie (`sid` by default)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthUser' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (clears session)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthUser' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/catalog/categories:
+    get:
+      tags: [Catalog]
+      summary: List active categories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Category' }
+
+  /api/catalog/products:
+    get:
+      tags: [Catalog]
+      summary: List/search products (active only)
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+
+  /api/catalog/products/{productId}:
+    get:
+      tags: [Catalog]
+      summary: Get product detail
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404':
+          description: Not found (including banned)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/cart:
+    get:
+      tags: [Cart]
+      summary: Get my cart
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CartItem' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/cart/items:
+    post:
+      tags: [Cart]
+      summary: Add/update cart item
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, quantity]
+              properties:
+                productId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Product not found / inactive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (stock/quantity)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/cart/items/{productId}:
+    patch:
+      tags: [Cart]
+      summary: Update cart item quantity
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    delete:
+      tags: [Cart]
+      summary: Remove cart item
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/checkout:
+    post:
+      tags: [Checkout]
+      summary: Create an order from my cart
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transactionId]
+              properties:
+                paymentMethod: { type: string, default: mock }
+                transactionId: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId]
+                properties:
+                  orderId: { type: string }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (cart/status/stock)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders:
+    get:
+      tags: [Orders]
+      summary: List my orders
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Order' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get my order detail
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/Order' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel an unpaid order
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/Order' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/suborders/{subOrderId}/confirm-receipt:
+    post:
+      tags: [Orders]
+      summary: Confirm receipt (shipped -> delivered)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: subOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/Order' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Payment webhook (idempotent)
+      description: |
+        Idempotency is keyed by (provider, eventId) and by (orderId, transactionId) for inventory ledger.
+        If PAYMENT_WEBHOOK_SECRET is configured, the request must include `x-webhook-secret`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventId, orderId, transactionId, status]
+              properties:
+                provider: { type: string, default: mock }
+                eventId: { type: string, minLength: 4 }
+                orderId: { type: string }
+                transactionId: { type: string, minLength: 8 }
+                status:
+                  type: string
+                  enum: [succeeded, failed, cancelled]
+                paymentMethod: { type: string, default: mock }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: Unauthorized (invalid webhook secret)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (invalid transition)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/payments/result:
+    get:
+      tags: [Payments]
+      summary: Get payment result for an order
+      parameters:
+        - in: query
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [found]
+                properties:
+                  found: { type: boolean }
+                  orderId: { type: string }
+                  orderStatus: { $ref: '#/components/schemas/OrderStatus' }
+                  paymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+
+  /api/payments/reconcile:
+    post:
+      tags: [Payments]
+      summary: Admin reconciliation for an order
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, processed]
+                properties:
+                  ok: { type: boolean }
+                  processed: { type: boolean }
+                  reason: { type: string }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/refunds:
+    post:
+      tags: [Refunds]
+      summary: Create refund request
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [suborderId, reason, requestedAmount]
+              properties:
+                suborderId: { type: string }
+                reason: { type: string }
+                requestedAmount: { type: integer, minimum: 0 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [refund]
+                properties:
+                  refund: { $ref: '#/components/schemas/RefundRequest' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not owner
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/reviews:
+    post:
+      tags: [Reviews]
+      summary: Create a review
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, rating, comment]
+              properties:
+                productId: { type: string }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment:
+                  type: string
+                  description: Plain text only (no HTML)
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [review]
+                properties:
+                  review: { $ref: '#/components/schemas/Review' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/application:
+    get:
+      tags: [Seller]
+      summary: Get my seller application (if any)
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application]
+                properties:
+                  application:
+                    allOf:
+                      - $ref: '#/components/schemas/SellerApplication'
+                    nullable: true
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/apply:
+    post:
+      tags: [Seller]
+      summary: Submit seller application
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shopName]
+              properties:
+                shopName: { type: string }
+                documents:
+                  nullable: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application]
+                properties:
+                  application: { $ref: '#/components/schemas/SellerApplication' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/products:
+    get:
+      tags: [Seller]
+      summary: List my products
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Seller]
+      summary: Create a product (draft by default)
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, price, stock, categoryId]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                price: { type: integer, minimum: 0 }
+                stock: { type: integer, minimum: 0 }
+                categoryId: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/Product' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/products/{productId}:
+    get:
+      tags: [Seller]
+      summary: Get my product
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/Product' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    patch:
+      tags: [Seller]
+      summary: Update my product
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                price: { type: integer, minimum: 0 }
+                stock: { type: integer, minimum: 0 }
+                categoryId: { type: string }
+                status: { $ref: '#/components/schemas/ProductStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/Product' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden (not owner or invalid status)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/suborders:
+    get:
+      tags: [Seller]
+      summary: List my suborders
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/SubOrderStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SubOrder' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/suborders/{suborderId}:
+    get:
+      tags: [Seller]
+      summary: Get my suborder detail
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: suborderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suborder]
+                properties:
+                  suborder: { $ref: '#/components/schemas/SubOrder' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/suborders/{suborderId}/ship:
+    post:
+      tags: [Seller]
+      summary: Mark a paid suborder as shipped
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: suborderId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                carrier: { type: string }
+                trackingNo: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suborder]
+                properties:
+                  suborder: { $ref: '#/components/schemas/SubOrder' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/settlements:
+    get:
+      tags: [Seller]
+      summary: List my settlements
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Settlement' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/settlements/{settlementId}:
+    get:
+      tags: [Seller]
+      summary: Get my settlement detail
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: settlementId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [settlement]
+                properties:
+                  settlement: { $ref: '#/components/schemas/Settlement' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/refunds:
+    get:
+      tags: [Seller]
+      summary: List refunds for my suborders
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/RefundRequestStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RefundRequest' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/refunds/{refundId}/approve:
+    post:
+      tags: [Seller]
+      summary: Seller approve refund
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: refundId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approvedAmount: { type: integer, minimum: 0 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [refund]
+                properties:
+                  refund: { $ref: '#/components/schemas/RefundRequest' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/refunds/{refundId}/reject:
+    post:
+      tags: [Seller]
+      summary: Seller reject refund
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: refundId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [refund]
+                properties:
+                  refund: { $ref: '#/components/schemas/RefundRequest' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/seller-applications:
+    get:
+      tags: [Admin]
+      summary: List seller applications
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/SellerApplicationStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SellerApplication' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/seller-applications/{applicationId}/decision:
+    post:
+      tags: [Admin]
+      summary: Approve/reject a seller application
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: applicationId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                note: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application]
+                properties:
+                  application: { $ref: '#/components/schemas/SellerApplication' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/categories:
+    get:
+      tags: [Admin]
+      summary: List categories
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Category' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Admin]
+      summary: Create category
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category]
+                properties:
+                  category: { $ref: '#/components/schemas/Category' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/categories/{categoryId}:
+    patch:
+      tags: [Admin]
+      summary: Update category status
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, inactive]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category]
+                properties:
+                  category: { $ref: '#/components/schemas/Category' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/settlements:
+    get:
+      tags: [Admin]
+      summary: List settlements
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/SettlementStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Settlement' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/settlements/{settlementId}/mark-settled:
+    post:
+      tags: [Admin]
+      summary: Mark settlement as settled
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: settlementId
+          required: true
+          schema: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [settlement]
+                properties:
+                  settlement: { $ref: '#/components/schemas/Settlement' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/products/{productId}:
+    patch:
+      tags: [Admin]
+      summary: Admin update product (e.g., ban)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { $ref: '#/components/schemas/ProductStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/Product' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/refunds/{refundId}/force:
+    post:
+      tags: [Admin]
+      summary: Force refund (admin)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: refundId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [refund]
+                properties:
+                  refund: { $ref: '#/components/schemas/RefundRequest' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/disputes:
+    get:
+      tags: [Admin]
+      summary: List disputes
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/DisputeStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/DisputeCase' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Admin]
+      summary: Create a dispute
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId: { type: string }
+                subOrderId: { type: string }
+                openedBy:
+                  type: string
+                  enum: [buyer, seller, admin]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [dispute]
+                properties:
+                  dispute: { $ref: '#/components/schemas/DisputeCase' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/disputes/{disputeId}/resolve:
+    post:
+      tags: [Admin]
+      summary: Resolve a dispute
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: disputeId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolutionNote]
+              properties:
+                resolutionNote: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [dispute]
+                properties:
+                  dispute: { $ref: '#/components/schemas/DisputeCase' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: List audit logs
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: actorUserId
+          schema: { type: string }
+        - in: query
+          name: targetType
+          schema: { type: string }
+        - in: query
+          name: targetId
+          schema: { type: string }
+        - in: query
+          name: since
+          schema: { type: string, format: date-time }
+        - in: query
+          name: until
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLog' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/UserMe' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out
+      security:
+        - cookieSession: []
+      responses:
+        '204': { description: No Content }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/UserMe' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/catalog/products:
+    get:
+      tags: [Catalog]
+      summary: List/search products (active only)
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: priceMin
+          schema: { type: integer }
+        - in: query
+          name: priceMax
+          schema: { type: integer }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProductSummary' }
+                  total: { type: integer }
+
+  /api/catalog/products/{productId}:
+    get:
+      tags: [Catalog]
+      summary: Get product detail
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/ProductDetail' }
+        '404':
+          description: Not found (including banned products per spec)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/cart:
+    get:
+      tags: [Cart]
+      summary: Get my cart
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cart]
+                properties:
+                  cart: { $ref: '#/components/schemas/CartView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Cart]
+      summary: Add/update cart item
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, quantity]
+              properties:
+                productId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cart]
+                properties:
+                  cart: { $ref: '#/components/schemas/CartView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (inactive/banned/out-of-stock)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    delete:
+      tags: [Cart]
+      summary: Remove cart item
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId: { type: string }
+      responses:
+        '204': { description: No Content }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/checkout:
+    post:
+      tags: [Checkout]
+      summary: Create Order + SubOrders + Payment from my cart
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paymentMethod: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, suborders, payment]
+                properties:
+                  orderId: { type: string }
+                  suborders:
+                    type: array
+                    items: { $ref: '#/components/schemas/SubOrderSummary' }
+                  payment: { $ref: '#/components/schemas/PaymentView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (validation/stock/status)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/payments/callback:
+    post:
+      tags: [Payments]
+      summary: Payment provider callback (idempotent)
+      description: |
+        Idempotency key: (orderId, transactionId). Must be safe for retries and out-of-order delivery.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, transactionId, status]
+              properties:
+                orderId: { type: string }
+                transactionId: { type: string }
+                status:
+                  type: string
+                  enum: [succeeded, failed, cancelled]
+      responses:
+        '200':
+          description: OK
+        '409':
+          description: Conflict (invalid transition)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders:
+    get:
+      tags: [Orders]
+      summary: List my orders
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrderSummary' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get my order detail
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/OrderDetail' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not owner
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel an unpaid Order (pre-payment)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/OrderDetail' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not owner
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (already paid/shipped)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/refunds:
+    post:
+      tags: [Refunds]
+      summary: Create refund request for a SubOrder
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [suborderId, reason, requestedAmount]
+              properties:
+                suborderId: { type: string }
+                reason: { type: string }
+                requestedAmount: { type: integer, minimum: 0 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [refund]
+                properties:
+                  refund: { $ref: '#/components/schemas/RefundRequestView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not owner
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (window/state)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/reviews:
+    post:
+      tags: [Reviews]
+      summary: Create a review for a delivered purchase
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, rating, comment]
+              properties:
+                productId: { type: string }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment:
+                  type: string
+                  description: Plain text only (no HTML)
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [review]
+                properties:
+                  review: { $ref: '#/components/schemas/ReviewView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (not delivered / already reviewed)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/apply:
+    post:
+      tags: [Seller]
+      summary: Submit seller application
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shopName]
+              properties:
+                shopName: { type: string }
+                documents:
+                  nullable: true
+                  description: Optional document references
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application]
+                properties:
+                  application: { $ref: '#/components/schemas/SellerApplicationView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/products:
+    get:
+      tags: [Seller]
+      summary: List my products
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProductSummary' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Seller]
+      summary: Create a product (draft by default)
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, price, stock, categoryId]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                price: { type: integer }
+                stock: { type: integer, minimum: 0 }
+                categoryId: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/ProductDetail' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/suborders:
+    get:
+      tags: [Seller]
+      summary: List my SubOrders
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/SubOrderStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SubOrderSummary' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/suborders/{suborderId}/ship:
+    post:
+      tags: [Seller]
+      summary: Mark a paid SubOrder as shipped
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: suborderId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                carrier: { type: string }
+                trackingNo: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suborder]
+                properties:
+                  suborder: { $ref: '#/components/schemas/SubOrderSummary' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not owner seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (invalid transition)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/seller/settlements:
+    get:
+      tags: [Seller]
+      summary: List my settlements
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SettlementView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not a seller
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/seller-applications:
+    get:
+      tags: [Admin]
+      summary: List seller applications
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/SellerApplicationStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SellerApplicationView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/seller-applications/{applicationId}/decision:
+    post:
+      tags: [Admin]
+      summary: Approve or reject a seller application (writes AuditLog)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: applicationId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                note:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application]
+                properties:
+                  application: { $ref: '#/components/schemas/SellerApplicationView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/admin/categories:
+    get:
+      tags: [Admin]
+      summary: List categories
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CategoryView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Admin]
+      summary: Create category (writes AuditLog)
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category]
+                properties:
+                  category: { $ref: '#/components/schemas/CategoryView' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Not an admin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+
+security:
+  - {}

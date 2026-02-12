@@ -1,0 +1,496 @@
+openapi: 3.0.3
+info:
+  title: Jira Lite REST API
+  version: 1.0.0
+  description: |
+    Multi-tenant project & issue tracking system.
+    Auth uses HttpOnly cookie session; mutations require CSRF token.
+servers:
+  - url: http://localhost:4000
+
+tags:
+  - name: Auth
+  - name: Platform
+  - name: Orgs
+  - name: Projects
+  - name: Issues
+  - name: Workflows
+  - name: Sprints
+  - name: Audit
+
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: session
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              description: Stable error code for client handling.
+            message:
+              type: string
+            requestId:
+              type: string
+    User:
+      type: object
+      required: [id, email, displayName]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        displayName: { type: string }
+    OrganizationSummary:
+      type: object
+      required: [id, name, status, plan, roleInOrg]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [active, suspended] }
+        plan: { type: string, enum: [free, paid] }
+        roleInOrg: { type: string, enum: [org_admin, org_member] }
+    ProjectSummary:
+      type: object
+      required: [id, key, name, type, status]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [scrum, kanban] }
+        status: { type: string, enum: [active, archived] }
+    IssueSummary:
+      type: object
+      required: [issueKey, type, title, priority, statusKey, createdAt, updatedAt]
+      properties:
+        issueKey: { type: string, example: PROJ-123 }
+        type: { type: string, enum: [story, task, bug, epic] }
+        title: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        statusKey: { type: string, example: todo }
+        assigneeUserId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AuditEvent:
+      type: object
+      required: [actorEmail, action, entityType, entityId, createdAt]
+      properties:
+        actorEmail: { type: string, format: email }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        before: { type: object, nullable: true, additionalProperties: true }
+        after: { type: object, nullable: true, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+
+security:
+  - cookieSession: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login with email/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: Get CSRF token for mutations
+      responses:
+        '200':
+          description: CSRF token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [csrfToken]
+                properties:
+                  csrfToken: { type: string }
+
+  /orgs:
+    get:
+      tags: [Orgs]
+      summary: List organizations for org switcher
+      responses:
+        '200':
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [organizations]
+                properties:
+                  organizations:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrganizationSummary' }
+        '401':
+          description: Not logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /orgs/{orgId}/projects:
+    get:
+      tags: [Orgs, Projects]
+      summary: List projects in organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Projects
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projects]
+                properties:
+                  projects:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProjectSummary' }
+        '404':
+          description: Not a member / org not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Orgs, Projects]
+      summary: Create project (Org Admin)
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, name, type]
+              properties:
+                key: { type: string, example: PROJ }
+                name: { type: string }
+                type: { type: string, enum: [scrum, kanban] }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projectId]
+                properties:
+                  projectId: { type: string }
+        '403':
+          description: Forbidden (role or ORG_SUSPENDED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / org not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/issues:
+    get:
+      tags: [Issues]
+      summary: List issues in project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: sort
+          required: false
+          schema:
+            type: string
+            enum: [created_at, updated_at]
+      responses:
+        '200':
+          description: Issues
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [issues]
+                properties:
+                  issues:
+                    type: array
+                    items: { $ref: '#/components/schemas/IssueSummary' }
+        '404':
+          description: Not a member / project not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      tags: [Issues]
+      summary: Create issue (role + project settings dependent)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title, priority]
+              properties:
+                type: { type: string, enum: [story, task, bug, epic] }
+                title: { type: string }
+                description: { type: string, nullable: true }
+                priority: { type: string, enum: [low, medium, high, critical] }
+                assigneeUserId: { type: string, nullable: true }
+                labels:
+                  type: array
+                  items: { type: string }
+                dueDate: { type: string, format: date, nullable: true }
+                estimate: { type: number, nullable: true }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [issueKey]
+                properties:
+                  issueKey: { type: string }
+        '403':
+          description: Forbidden (role, ORG_SUSPENDED, PROJECT_ARCHIVED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / project not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/issues/{issueKey}:
+    get:
+      tags: [Issues]
+      summary: Get issue detail
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: issueKey
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Issue detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [issue]
+                properties:
+                  issue:
+                    allOf:
+                      - $ref: '#/components/schemas/IssueSummary'
+                      - type: object
+                        properties:
+                          description: { type: string, nullable: true }
+                          labels:
+                            type: array
+                            items: { type: string }
+                          dueDate: { type: string, format: date, nullable: true }
+                          estimate: { type: number, nullable: true }
+                          reporterUserId: { type: string }
+        '404':
+          description: Not a member / issue not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    patch:
+      tags: [Issues]
+      summary: Update issue fields (optimistic concurrency)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: issueKey
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion, patch]
+              properties:
+                expectedVersion:
+                  type: string
+                  description: Opaque version token (e.g., updatedAt ISO string)
+                patch:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updatedVersion]
+                properties:
+                  updatedVersion: { type: string }
+        '403':
+          description: Forbidden (role, ORG_SUSPENDED, PROJECT_ARCHIVED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / issue not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (optimistic concurrency)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/issues/{issueKey}/transition:
+    post:
+      tags: [Issues]
+      summary: Transition issue status
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: issueKey
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toStatusKey, expectedVersion]
+              properties:
+                toStatusKey: { type: string }
+                expectedVersion: { type: string }
+      responses:
+        '200':
+          description: Transitioned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updatedVersion]
+                properties:
+                  updatedVersion: { type: string }
+        '403':
+          description: Forbidden (role, workflow rule, ORG_SUSPENDED, PROJECT_ARCHIVED, ISSUE_STATUS_DEPRECATED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / issue not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (optimistic concurrency)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /audit:
+    get:
+      tags: [Audit]
+      summary: Query audit log by scope
+      parameters:
+        - in: query
+          name: scope
+          required: true
+          schema: { type: string, enum: [platform, org, project] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEvent' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }

@@ -1,0 +1,1182 @@
+openapi: 3.0.3
+info:
+  title: Internal Document Review & Approval API
+  version: 0.1.0
+  description: |
+    內部文件審核與簽核系統 API（REST/JSON）。
+
+    重要約束：
+    - 嚴格狀態機（非法轉換回 400）
+    - 物件層級授權（User 僅自身；Reviewer 僅任務關聯；Admin 全部）
+    - append-only（ApprovalRecord/AuditLog 不可更新/刪除）
+    - 併發防重（ReviewTask 只能處理一次；重複回 409 且不得產生重複紀錄）
+
+servers:
+  - url: http://localhost:3000
+
+tags:
+  - name: Auth
+  - name: Documents
+  - name: Flows
+  - name: Reviews
+  - name: Admin
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+
+  schemas:
+    Role:
+      type: string
+      enum: [User, Reviewer, Admin]
+
+    DocumentStatus:
+      type: string
+      enum: [Draft, Submitted, InReview, Rejected, Approved, Archived]
+
+    ReviewTaskStatus:
+      type: string
+      enum: [Pending, Approved, Rejected, Cancelled]
+
+    ReviewMode:
+      type: string
+      enum: [Serial, Parallel]
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code.
+            message:
+              type: string
+              description: User-facing safe message.
+            details:
+              type: object
+              additionalProperties: true
+            requestId:
+              type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      required: [role, expiresAt]
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+        expiresAt:
+          type: string
+          format: date-time
+
+    DocumentListItem:
+      type: object
+      required: [id, title, status, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        updatedAt:
+          type: string
+          format: date-time
+
+    Document:
+      type: object
+      required: [id, title, status, ownerId, currentVersionId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 120
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        ownerId:
+          type: string
+          format: uuid
+        currentVersionId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DocumentVersion:
+      type: object
+      required: [id, documentId, versionNo, content, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        versionNo:
+          type: integer
+          minimum: 1
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Attachment:
+      type: object
+      required: [id, documentVersionId, filename, contentType, sizeBytes, storageKey, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentVersionId:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+          minimum: 0
+        storageKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ReviewTask:
+      type: object
+      required: [id, documentId, documentVersionId, assigneeId, stepKey, mode, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        documentVersionId:
+          type: string
+          format: uuid
+        assigneeId:
+          type: string
+          format: uuid
+        stepKey:
+          type: string
+        mode:
+          $ref: '#/components/schemas/ReviewMode'
+        status:
+          $ref: '#/components/schemas/ReviewTaskStatus'
+        actedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ApprovalRecord:
+      type: object
+      required: [id, documentId, documentVersionId, reviewTaskId, actorId, action, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        documentVersionId:
+          type: string
+          format: uuid
+        reviewTaskId:
+          type: string
+          format: uuid
+        actorId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [Approved, Rejected]
+        reason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      required: [id, actorId, action, entityType, entityId, metadata, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        actorId:
+          type: string
+          format: uuid
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+
+    DocumentDetailResponse:
+      type: object
+      required: [document, versions, attachments, reviewTasks, approvalRecords, auditLogs]
+      properties:
+        document:
+          $ref: '#/components/schemas/Document'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentVersion'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        reviewTasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewTask'
+        approvalRecords:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovalRecord'
+        auditLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+
+    CreateDocumentResponse:
+      type: object
+      required: [documentId, status, currentVersionId]
+      properties:
+        documentId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        currentVersionId:
+          type: string
+          format: uuid
+
+    UpdateDraftRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        content:
+          type: string
+          minLength: 1
+
+    SubmitForApprovalRequest:
+      type: object
+      required: [templateId]
+      properties:
+        templateId:
+          type: string
+          format: uuid
+
+    SubmitForApprovalResponse:
+      type: object
+      required: [documentId, status, lockedVersionId, createdTasksCount]
+      properties:
+        documentId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        lockedVersionId:
+          type: string
+          format: uuid
+        createdTasksCount:
+          type: integer
+          minimum: 0
+
+    RejectTaskRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+
+    ReviewTaskActionResponse:
+      type: object
+      required: [reviewTaskId, status, actedAt, documentStatus]
+      properties:
+        reviewTaskId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ReviewTaskStatus'
+        actedAt:
+          type: string
+          format: date-time
+        documentStatus:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    FlowTemplate:
+      type: object
+      required: [id, name, isActive, steps, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isActive:
+          type: boolean
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStep'
+        updatedAt:
+          type: string
+          format: date-time
+
+    ActiveFlowTemplateSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    ListActiveFlowTemplatesResponse:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveFlowTemplateSummary'
+
+    FlowStep:
+      type: object
+      required: [stepKey, orderIndex, mode, assigneeIds]
+      properties:
+        stepKey:
+          type: string
+        orderIndex:
+          type: integer
+        mode:
+          $ref: '#/components/schemas/ReviewMode'
+        assigneeIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpsertFlowTemplateRequest:
+      type: object
+      required: [name, isActive, steps]
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStep'
+
+    FlowTemplateSummary:
+      type: object
+      required: [id, name, isActive, stepsCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isActive:
+          type: boolean
+        stepsCount:
+          type: integer
+          minimum: 0
+
+    ListFlowTemplatesResponse:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowTemplate'
+
+    UpsertFlowTemplateResponse:
+      type: object
+      required: [templateId]
+      properties:
+        templateId:
+          type: string
+          format: uuid
+
+    DeactivateFlowTemplateResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+
+    UserSummary:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+
+    ListUsersResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: session cookie (HttpOnly)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      responses:
+        '204':
+          description: No Content
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents:
+    get:
+      tags: [Documents]
+      summary: List visible documents (User: own; Admin: all)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentListItem'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden (e.g., Reviewer)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+    post:
+      tags: [Documents]
+      summary: Create document draft
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDocumentResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents/{documentId}:
+    get:
+      tags: [Documents]
+      summary: Get document detail (visible scope)
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found (includes IDOR protection)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents/{documentId}/draft:
+    put:
+      tags: [Documents]
+      summary: Update draft title/content (Draft only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDraftRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Validation/State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found (includes IDOR protection)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents/{documentId}/attachments:
+    post:
+      tags: [Documents]
+      summary: Upload attachment (Draft only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+        '400':
+          description: Validation/State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found (includes IDOR protection)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents/{documentId}/submit:
+    post:
+      tags: [Documents]
+      summary: Submit document for approval (locks version and creates review tasks)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitForApprovalRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitForApprovalResponse'
+        '400':
+          description: Validation/State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found (includes IDOR protection)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents/{documentId}/reopen:
+    post:
+      tags: [Documents]
+      summary: Reopen rejected document as draft (creates new draft version)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/documents/{documentId}/archive:
+    post:
+      tags: [Admin]
+      summary: Archive approved document (Admin only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/flows/active:
+    get:
+      tags: [Flows]
+      summary: List active approval flow templates
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListActiveFlowTemplatesResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/reviews/tasks:
+    get:
+      tags: [Reviews]
+      summary: List my pending review tasks (Reviewer only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewTask'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/reviews/tasks/{reviewTaskId}/approve:
+    post:
+      tags: [Reviews]
+      summary: Approve a pending task (assignee only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: reviewTaskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewTaskActionResponse'
+        '400':
+          description: State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found (includes authorization hiding)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict (already handled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/reviews/tasks/{reviewTaskId}/reject:
+    post:
+      tags: [Reviews]
+      summary: Reject a pending task with reason (assignee only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: reviewTaskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectTaskRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewTaskActionResponse'
+        '400':
+          description: Validation/State error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found (includes authorization hiding)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict (already handled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/admin/flows:
+    get:
+      tags: [Admin]
+      summary: List approval flow templates (Admin only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFlowTemplatesResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+    post:
+      tags: [Admin]
+      summary: Create a flow template (Admin only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertFlowTemplateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertFlowTemplateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/admin/flows/{templateId}:
+    put:
+      tags: [Admin]
+      summary: Update a flow template (Admin only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertFlowTemplateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertFlowTemplateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/admin/flows/{templateId}/deactivate:
+    post:
+      tags: [Admin]
+      summary: Deactivate a flow template (Admin only)
+      security:
+        - sessionCookie: []
+        - csrfHeader: []
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeactivateFlowTemplateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: List users by role (Admin only)
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListUsersResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'

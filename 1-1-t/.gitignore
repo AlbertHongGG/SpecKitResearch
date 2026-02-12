@@ -1,0 +1,37 @@
+# Node
+node_modules/
+
+# Builds
+/dist/
+/build/
+coverage/
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# Backend
+backend/dist/
+backend/coverage/
+
+# Frontend
+frontend/dist/
+frontend/coverage/
+
+# Prisma
+backend/dev.db
+backend/*.db
+
+# Misc
+*.tmp
+*.swp

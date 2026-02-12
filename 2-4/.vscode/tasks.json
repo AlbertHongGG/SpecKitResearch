@@ -1,0 +1,82 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "speckit: setup-plan --json",
+			"type": "shell",
+			"command": ".specify/scripts/bash/setup-plan.sh",
+			"args": [
+				"--json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "speckit: refresh plan (setup-plan + rewrite + verify)",
+			"type": "shell",
+			"command": "python3",
+			"args": [
+				"specs/001-dynamic-survey-logic/refresh_plan.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "speckit: update-agent-context (copilot)",
+			"type": "shell",
+			"command": ".specify/scripts/bash/update-agent-context.sh",
+			"args": [
+				"copilot"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "dev: web",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev:web"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "dev: api",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev:api"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "db: prisma migrate",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"prisma:migrate"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "lint",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"lint"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "format",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"format"
+			],
+			"isBackground": false
+		}
+	]
+}

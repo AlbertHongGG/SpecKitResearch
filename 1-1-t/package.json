@@ -1,0 +1,15 @@
+{
+  "name": "1-1-t",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "dev": "bash ./scripts/dev.sh",
+    "test": "bash ./scripts/test.sh",
+    "validate:openapi": "bash ./scripts/validate-openapi.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

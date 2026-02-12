@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+
+# Environment
+.env*
+
+# Prisma / SQLite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Locks / generated
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Editor/OS
+.DS_Store
+.vscode/
+.idea/

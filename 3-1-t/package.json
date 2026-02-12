@@ -1,0 +1,40 @@
+{
+  "name": "3-1-t",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run --workspace backend start:dev",
+    "dev:frontend": "npm run --workspace frontend dev",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "npm run --workspace backend lint",
+    "lint:frontend": "npm run --workspace frontend lint",
+    "format": "prettier . --write",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "npm run --workspace backend test",
+    "test:frontend": "npm run --workspace frontend test",
+    "e2e": "npm run --workspace frontend e2e",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.21.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "bcryptjs": "^3.0.3",
+    "prisma": "^6.19.2"
+  }
+}

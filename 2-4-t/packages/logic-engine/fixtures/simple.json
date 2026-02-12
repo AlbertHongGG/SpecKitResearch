@@ -1,0 +1,31 @@
+{
+  "survey": {
+    "questions": [
+      { "id": "q1", "title": "Q1", "type": "SC", "required": true, "options": [{"id":"o1","label":"Yes","value":"yes"},{"id":"o2","label":"No","value":"no"}] },
+      { "id": "q2", "title": "Q2", "type": "TEXT", "required": false }
+    ],
+    "rule_groups": [
+      {
+        "id": "rg1",
+        "target_question_id": "q2",
+        "action": "show",
+        "mode": "AND",
+        "rules": [
+          { "id": "r1", "source_question_id": "q1", "operator": "equals", "value": "yes" }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "q2 hidden when q1=no",
+      "answers": { "q1": "no" },
+      "expected_visible": ["q1"]
+    },
+    {
+      "name": "q2 visible when q1=yes",
+      "answers": { "q1": "yes" },
+      "expected_visible": ["q1", "q2"]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "jira-lite",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run -ws dev",
+    "dev:frontend": "npm --workspace apps/frontend run dev",
+    "dev:backend": "npm --workspace apps/backend run dev",
+    "build": "npm run -ws build",
+    "typecheck": "npm run -ws typecheck",
+    "lint": "npm run -ws lint",
+    "format": "prettier . --write",
+    "test:unit": "vitest --config tests/unit/vitest.config.ts",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

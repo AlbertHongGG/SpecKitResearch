@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  User
+  Reviewer
+  Admin
+}
+
+enum DocumentStatus {
+  Draft
+  Submitted
+  InReview
+  Rejected
+  Approved
+  Archived
+}
+
+enum ReviewMode {
+  Serial
+  Parallel
+}
+
+enum ReviewTaskStatus {
+  Pending
+  Approved
+  Rejected
+  Cancelled
+}
+
+enum ApprovalAction {
+  Approved
+  Rejected
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+
+  documentsOwned Document[] @relation("DocumentOwner")
+  reviewTasks    ReviewTask[]
+  approvalRecords ApprovalRecord[] @relation("ApprovalActor")
+  auditLogs       AuditLog[]
+  flowAssignees   ApprovalFlowStepAssignee[]
+}
+
+model Document {
+  id               String         @id @default(uuid())
+  title            String
+  status           DocumentStatus
+  ownerId          String
+  currentVersionId String? @unique
+  flowTemplateId   String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  owner          User            @relation("DocumentOwner", fields: [ownerId], references: [id])
+  currentVersion DocumentVersion? @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id])
+  flowTemplate   ApprovalFlowTemplate? @relation("DocumentFlowTemplate", fields: [flowTemplateId], references: [id])
+  versions       DocumentVersion[] @relation("DocumentVersions")
+  reviewTasks    ReviewTask[]
+  approvalRecords ApprovalRecord[]
+
+  @@index([ownerId, updatedAt])
+  @@index([updatedAt])
+}
+
+model DocumentVersion {
+  id         String   @id @default(uuid())
+  documentId String
+  versionNo  Int
+  content    String
+  createdAt  DateTime @default(now())
+
+  document    Document     @relation("DocumentVersions", fields: [documentId], references: [id])
+  currentOf   Document?    @relation("DocumentCurrentVersion")
+  attachments Attachment[]
+  reviewTasks  ReviewTask[]
+  approvalRecords ApprovalRecord[]
+
+  @@unique([documentId, versionNo])
+}
+
+model Attachment {
+  id              String   @id @default(uuid())
+  documentVersionId String
+  filename        String
+  contentType     String
+  sizeBytes       Int
+  storageKey      String
+  createdAt       DateTime @default(now())
+
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id])
+}
+
+model ApprovalFlowTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps ApprovalFlowStep[]
+  documents Document[] @relation("DocumentFlowTemplate")
+}
+
+model ApprovalFlowStep {
+  id         String     @id @default(uuid())
+  templateId String
+  stepKey    String
+  orderIndex Int
+  mode       ReviewMode
+
+  template  ApprovalFlowTemplate @relation(fields: [templateId], references: [id])
+  assignees ApprovalFlowStepAssignee[]
+
+  @@unique([templateId, stepKey])
+  @@index([templateId, orderIndex])
+}
+
+model ApprovalFlowStepAssignee {
+  stepId     String
+  assigneeId String
+
+  step     ApprovalFlowStep @relation(fields: [stepId], references: [id])
+  assignee User            @relation(fields: [assigneeId], references: [id])
+
+  @@id([stepId, assigneeId])
+}
+
+model ReviewTask {
+  id               String         @id @default(uuid())
+  documentId       String
+  documentVersionId String
+  assigneeId       String
+  stepKey          String
+  mode             ReviewMode
+  status           ReviewTaskStatus
+  actedAt          DateTime?
+  createdAt        DateTime       @default(now())
+
+  document        Document        @relation(fields: [documentId], references: [id])
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id])
+  assignee        User            @relation(fields: [assigneeId], references: [id])
+  approvalRecord  ApprovalRecord?
+
+  @@index([assigneeId, status, createdAt])
+  @@index([documentId, status])
+}
+
+model ApprovalRecord {
+  id               String         @id @default(uuid())
+  documentId       String
+  documentVersionId String
+  reviewTaskId     String         @unique
+  actorId          String
+  action           ApprovalAction
+  reason           String?
+  createdAt        DateTime       @default(now())
+
+  document        Document        @relation(fields: [documentId], references: [id])
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id])
+  reviewTask      ReviewTask      @relation(fields: [reviewTaskId], references: [id])
+  actor           User            @relation("ApprovalActor", fields: [actorId], references: [id])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String
+  action       String
+  entityType   String
+  entityId     String
+  metadataJson String
+  createdAt    DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+}

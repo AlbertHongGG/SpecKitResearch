@@ -1,0 +1,38 @@
+{
+  "name": "dynamic-survey-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:api": "npm run dev --workspace apps/api",
+    "build": "npm run build --workspaces",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "npm -w packages/contracts run build && npm -w packages/logic-engine run build && playwright test --config playwright.config.cjs",
+    "lint": "eslint .",
+    "format": "prettier -w .",
+    "typecheck": "tsc -b",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsup": "^8.0.0",
+    "vitest": "^2.0.0",
+    "@playwright/test": "^1.0.0",
+    "prisma": "^6.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}

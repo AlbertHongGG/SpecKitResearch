@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+.next/
+dist/
+build/
+out/
+coverage/
+apps/api/prisma/migrations/
+apps/api/.tmp/
+
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

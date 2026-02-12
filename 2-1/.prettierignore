@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+build
+dist
+coverage
+prisma/dev.db
+prisma/dev.db-journal
+uploads
+*.db
+*.db-journal

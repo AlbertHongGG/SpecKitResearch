@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum QuestionType {
+  SC
+  MC
+  TEXT
+  NUMBER
+  RATING
+  MATRIX
+}
+
+enum RuleAction {
+  SHOW
+  HIDE
+}
+
+enum GroupOperator {
+  AND
+  OR
+}
+
+enum RuleOperator {
+  EQUALS
+  NOT_EQUALS
+  CONTAINS
+}
+
+model User {
+  id            String        @id @default(cuid())
+  username      String        @unique
+  passwordHash  String
+  createdAt     DateTime      @default(now())
+
+  surveys       Survey[]
+  sessions      AuthSession[]
+  responses     Response[]
+}
+
+model AuthSession {
+  id         String    @id
+  userId     String
+  csrfToken  String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Survey {
+  id           String       @id @default(cuid())
+  ownerUserId  String
+  slug         String       @unique
+  title        String
+  description  String?
+  status       SurveyStatus @default(DRAFT)
+  isAnonymous  Boolean      @default(true)
+  publishHash  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  owner        User         @relation(fields: [ownerUserId], references: [id])
+  questions    Question[]
+  ruleGroups   RuleGroup[]
+  responses    Response[]
+
+  @@index([ownerUserId])
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  surveyId    String
+  order       Int
+  type        QuestionType
+  required    Boolean      @default(false)
+  title       String
+  description String?
+  configJson  Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  survey      Survey       @relation(fields: [surveyId], references: [id])
+  options     Option[]
+  targetRuleGroups RuleGroup[] @relation("RuleGroupTargetQuestion")
+  sourceLogicRules LogicRule[] @relation("LogicRuleSourceQuestion")
+  answers     Answer[]
+
+  @@unique([surveyId, order])
+  @@index([surveyId])
+}
+
+model Option {
+  id         String   @id @default(cuid())
+  questionId String
+  value      String
+  label      String
+  order      Int
+
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@unique([questionId, value])
+  @@unique([questionId, order])
+  @@index([questionId])
+}
+
+model RuleGroup {
+  id              String        @id @default(cuid())
+  surveyId        String
+  targetQuestionId String
+  action          RuleAction
+  operator        GroupOperator
+  order           Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  survey          Survey         @relation(fields: [surveyId], references: [id])
+  targetQuestion  Question       @relation("RuleGroupTargetQuestion", fields: [targetQuestionId], references: [id])
+  rules           LogicRule[]
+
+  @@index([surveyId])
+  @@index([targetQuestionId])
+}
+
+model LogicRule {
+  id            String        @id @default(cuid())
+  ruleGroupId   String
+  sourceQuestionId String
+  operator      RuleOperator
+  valueJson     Json
+  order         Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  ruleGroup     RuleGroup      @relation(fields: [ruleGroupId], references: [id])
+  sourceQuestion Question      @relation("LogicRuleSourceQuestion", fields: [sourceQuestionId], references: [id])
+
+  @@index([ruleGroupId])
+  @@index([sourceQuestionId])
+}
+
+model Response {
+  id           String   @id @default(cuid())
+  surveyId     String
+  publishHash  String
+  responseHash String
+  respondentId String?
+  submittedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  survey       Survey   @relation(fields: [surveyId], references: [id])
+  respondent   User?    @relation(fields: [respondentId], references: [id])
+  answers      Answer[]
+
+  @@index([surveyId])
+  @@index([respondentId])
+  @@index([submittedAt])
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  responseId String
+  questionId String
+  valueJson  Json
+  createdAt  DateTime @default(now())
+
+  response   Response @relation(fields: [responseId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@unique([responseId, questionId])
+  @@index([responseId])
+  @@index([questionId])
+}

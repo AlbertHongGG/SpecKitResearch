@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
+
+  surveys Survey[]
+  responses Response[]
+}
+
+enum SurveyStatus {
+  Draft
+  Published
+  Closed
+}
+
+model Survey {
+  id            String       @id @default(uuid())
+  owner_user_id String
+  slug          String       @unique
+  title         String
+  description   String?
+  is_anonymous  Boolean
+  status        SurveyStatus @default(Draft)
+  publish_hash  String?
+  created_at    DateTime     @default(now())
+
+  owner User @relation(fields: [owner_user_id], references: [id])
+
+  questions    Question[]
+  rule_groups  RuleGroup[]
+  publishes    SurveyPublish[]
+  responses    Response[]
+}
+
+enum QuestionType {
+  SingleChoice
+  MultipleChoice
+  Text
+  Number
+  Rating
+  Matrix
+}
+
+model Question {
+  id          String       @id @default(uuid())
+  survey_id   String
+  type        QuestionType
+  title       String
+  is_required Boolean
+  order       Int
+
+  survey  Survey  @relation(fields: [survey_id], references: [id])
+  options Option[]
+
+  @@index([survey_id, order])
+}
+
+model Option {
+  id          String @id @default(uuid())
+  question_id String
+  label       String
+  value       String
+
+  question Question @relation(fields: [question_id], references: [id])
+
+  @@unique([question_id, value])
+}
+
+enum RuleAction {
+  show
+  hide
+}
+
+enum GroupOperator {
+  AND
+  OR
+}
+
+model RuleGroup {
+  id                 String        @id @default(uuid())
+  survey_id           String
+  target_question_id  String
+  action             RuleAction
+  group_operator     GroupOperator
+
+  survey Survey @relation(fields: [survey_id], references: [id])
+  rules  LogicRule[]
+}
+
+enum RuleOperator {
+  equals
+  not_equals
+  contains
+}
+
+model LogicRule {
+  id                String       @id @default(uuid())
+  rule_group_id     String
+  source_question_id String
+  operator          RuleOperator
+  value             String
+
+  group RuleGroup @relation(fields: [rule_group_id], references: [id])
+}
+
+model SurveyPublish {
+  id          String   @id @default(uuid())
+  survey_id   String
+  publish_hash String  @unique
+  schema_json Json
+  created_at  DateTime @default(now())
+
+  survey Survey @relation(fields: [survey_id], references: [id])
+  responses Response[]
+}
+
+model Response {
+  id               String   @id @default(uuid())
+  survey_id        String
+  survey_publish_id String
+  respondent_id    String?
+  publish_hash     String
+  response_hash    String
+  submitted_at     DateTime @default(now())
+
+  survey Survey @relation(fields: [survey_id], references: [id])
+  publish SurveyPublish @relation(fields: [survey_publish_id], references: [id])
+  respondent User? @relation(fields: [respondent_id], references: [id])
+  answers Answer[]
+
+  @@index([survey_id, submitted_at])
+}
+
+model Answer {
+  id          String @id @default(uuid())
+  response_id String
+  question_id String
+  value       Json
+
+  response Response @relation(fields: [response_id], references: [id])
+  @@index([response_id])
+}

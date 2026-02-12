@@ -1,0 +1,21 @@
+{
+  "name": "doc-review-approval",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm -w backend run dev\" \"npm -w frontend run dev\"",
+    "build": "npm -ws run build",
+    "lint": "npm -ws run lint",
+    "format": "prettier -w .",
+    "typecheck": "npm -ws run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}

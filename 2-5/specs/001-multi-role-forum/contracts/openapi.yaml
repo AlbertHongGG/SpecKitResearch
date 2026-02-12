@@ -1,0 +1,1028 @@
+openapi: 3.0.3
+info:
+  title: Multi-Role Forum & Community Platform API
+  version: 0.1.0
+  description: |
+    多角色論壇／社群平台（RBAC + Board Scope）。
+
+    Auth 採同域 HttpOnly Cookie Session；對所有寫入請求需額外帶 CSRF header（見各 endpoint 說明）。
+servers:
+  - url: /api
+
+tags:
+  - name: Auth
+  - name: Boards
+  - name: Threads
+  - name: Posts
+  - name: Reactions
+  - name: Reports
+  - name: Admin
+
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+    PageInfo:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+    User:
+      type: object
+      required: [id, email, role, isBanned]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, admin]
+        isBanned:
+          type: boolean
+    Board:
+      type: object
+      required: [id, name, description, isActive, sortOrder]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+    ThreadStatus:
+      type: string
+      enum: [draft, published, hidden, locked]
+    PostStatus:
+      type: string
+      enum: [visible, hidden]
+    ThreadSummary:
+      type: object
+      required: [id, boardId, title, status, isPinned, isFeatured, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        boardId: { type: string }
+        title: { type: string }
+        status: { $ref: '#/components/schemas/ThreadStatus' }
+        isPinned: { type: boolean }
+        isFeatured: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ThreadDetail:
+      allOf:
+        - $ref: '#/components/schemas/ThreadSummary'
+        - type: object
+          required: [content, authorId]
+          properties:
+            content: { type: string }
+            authorId: { type: string }
+    Post:
+      type: object
+      required: [id, threadId, authorId, content, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        threadId: { type: string }
+        authorId: { type: string }
+        content: { type: string }
+        status: { $ref: '#/components/schemas/PostStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ReportStatus:
+      type: string
+      enum: [pending, accepted, rejected]
+    Report:
+      type: object
+      required: [id, reporterId, targetType, targetId, reason, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        reporterId: { type: string }
+        targetType: { type: string, enum: [thread, post] }
+        targetId: { type: string }
+        reason: { type: string }
+        status: { $ref: '#/components/schemas/ReportStatus' }
+        resolvedById: { type: string, nullable: true }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        note: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register and create session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                returnTo: { type: string }
+      responses:
+        '200':
+          description: Registered and logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  returnTo: { type: string }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and create session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                returnTo: { type: string }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  returnTo: { type: string }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Banned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (invalidate session)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, moderatorBoards]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  moderatorBoards:
+                    type: array
+                    items:
+                      type: object
+                      required: [boardId]
+                      properties:
+                        boardId: { type: string }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /boards:
+    get:
+      tags: [Boards]
+      summary: List boards
+      responses:
+        '200':
+          description: Boards
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [boards]
+                properties:
+                  boards:
+                    type: array
+                    items: { $ref: '#/components/schemas/Board' }
+
+  /boards/{boardId}:
+    get:
+      tags: [Boards]
+      summary: Get board detail
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Board
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [board, permissions]
+                properties:
+                  board: { $ref: '#/components/schemas/Board' }
+                  permissions:
+                    type: object
+                    required: [canPost, canModerate]
+                    properties:
+                      canPost: { type: boolean }
+                      canModerate: { type: boolean }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /boards/{boardId}/threads:
+    get:
+      tags: [Threads]
+      summary: List threads by board
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Thread list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ThreadSummary' }
+                  pageInfo: { $ref: '#/components/schemas/PageInfo' }
+
+  /threads:
+    post:
+      tags: [Threads]
+      summary: Create thread (draft or publish)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Board must be active.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [boardId, title, content, intent]
+              properties:
+                boardId: { type: string }
+                title: { type: string }
+                content: { type: string }
+                intent: { type: string, enum: [save_draft, publish] }
+      responses:
+        '200':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thread]
+                properties:
+                  thread: { $ref: '#/components/schemas/ThreadDetail' }
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden (board inactive/banned)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /threads/{threadId}:
+    get:
+      tags: [Threads]
+      summary: Get thread detail
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Thread
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thread, viewer]
+                properties:
+                  thread: { $ref: '#/components/schemas/ThreadDetail' }
+                  viewer:
+                    type: object
+                    required: [canReply, canEdit, canModerate]
+                    properties:
+                      canReply: { type: boolean }
+                      canEdit: { type: boolean }
+                      canModerate: { type: boolean }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /threads/{threadId}/publish:
+    post:
+      tags: [Threads]
+      summary: Publish draft thread
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header.
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thread]
+                properties:
+                  thread: { $ref: '#/components/schemas/ThreadDetail' }
+
+  /threads/{threadId}/moderation/hide:
+    post:
+      tags: [Threads]
+      summary: Hide thread (Moderator/Admin)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Moderator must have board scope.
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Hidden
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thread]
+                properties:
+                  thread: { $ref: '#/components/schemas/ThreadDetail' }
+
+  /threads/{threadId}/posts:
+    get:
+      tags: [Posts]
+      summary: List posts by thread
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Posts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Post' }
+                  pageInfo: { $ref: '#/components/schemas/PageInfo' }
+
+  /posts:
+    post:
+      tags: [Posts]
+      summary: Create post (reply)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Thread must not be locked; board must be active.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [threadId, content]
+              properties:
+                threadId: { type: string }
+                content: { type: string }
+      responses:
+        '200':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [post]
+                properties:
+                  post: { $ref: '#/components/schemas/Post' }
+
+  /likes:
+    post:
+      tags: [Reactions]
+      summary: Like/unlike a thread or post
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Idempotent; uniqueness enforced.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetType, targetId, action]
+              properties:
+                targetType: { type: string, enum: [thread, post] }
+                targetId: { type: string }
+                action: { type: string, enum: [like, unlike] }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [liked]
+                properties:
+                  liked: { type: boolean }
+
+  /favorites:
+    post:
+      tags: [Reactions]
+      summary: Favorite/unfavorite a thread
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Idempotent; uniqueness enforced.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [threadId, action]
+              properties:
+                threadId: { type: string }
+                action: { type: string, enum: [favorite, unfavorite] }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [favorited]
+                properties:
+                  favorited: { type: boolean }
+
+  /reports:
+    post:
+      tags: [Reports]
+      summary: Create report
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Must be visible content; board must be active.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetType, targetId, reason]
+              properties:
+                targetType: { type: string, enum: [thread, post] }
+                targetId: { type: string }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [report]
+                properties:
+                  report: { $ref: '#/components/schemas/Report' }
+
+  /boards/{boardId}/reports:
+    get:
+      tags: [Reports]
+      summary: List reports in a board (Moderator/Admin)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, accepted, rejected] }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Report' }
+                  pageInfo: { $ref: '#/components/schemas/PageInfo' }
+
+  /reports/{reportId}/resolve:
+    post:
+      tags: [Reports]
+      summary: Resolve report (accept/reject)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header. Moderator must have board scope.
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome: { type: string, enum: [accepted, rejected] }
+                note: { type: string }
+      responses:
+        '200':
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [report]
+                properties:
+                  report: { $ref: '#/components/schemas/Report' }
+
+  /search:
+    get:
+      tags: [Boards]
+      summary: Public search
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [type, threadId, snippet]
+                      properties:
+                        type: { type: string, enum: [thread, post] }
+                        threadId: { type: string }
+                        postId: { type: string }
+                        snippet: { type: string }
+                  pageInfo: { $ref: '#/components/schemas/PageInfo' }
+
+  /admin/boards:
+    get:
+      tags: [Admin]
+      summary: List boards (Admin only)
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: Boards
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [boards]
+                properties:
+                  boards:
+                    type: array
+                    items: { $ref: '#/components/schemas/Board' }
+
+    post:
+      tags: [Admin]
+      summary: Create board (Admin only)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, description]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                sortOrder: { type: integer }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [board]
+                properties:
+                  board: { $ref: '#/components/schemas/Board' }
+
+    patch:
+      tags: [Admin]
+      summary: Update board or reorder boards (Admin only)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header.
+
+        Either update a single board by id, or reorder multiple boards.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [id]
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    description: { type: string }
+                    isActive: { type: boolean }
+                    sortOrder: { type: integer }
+                - type: object
+                  required: [reorder]
+                  properties:
+                    reorder:
+                      type: array
+                      items:
+                        type: object
+                        required: [id, sortOrder]
+                        properties:
+                          id: { type: string }
+                          sortOrder: { type: integer }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  board: { $ref: '#/components/schemas/Board' }
+                  boards:
+                    type: array
+                    items: { $ref: '#/components/schemas/Board' }
+
+  /admin/moderators:
+    post:
+      tags: [Admin]
+      summary: Assign or remove moderator for a board (Admin only)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [boardId, action]
+              properties:
+                boardId: { type: string }
+                action: { type: string, enum: [assign, remove] }
+                userId: { type: string }
+                userEmail: { type: string, format: email }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+
+  /admin/users/ban:
+    post:
+      tags: [Admin]
+      summary: Set user ban status (Admin only)
+      security:
+        - cookieSession: []
+      description: |
+        Requires CSRF header.
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [banned]
+              properties:
+                userId: { type: string }
+                userEmail: { type: string, format: email }
+                banned: { type: boolean }
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+
+  /admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: List audit logs (Admin only)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: actorId
+          schema: { type: string }
+        - in: query
+          name: targetType
+          schema: { type: string }
+        - in: query
+          name: targetId
+          schema: { type: string }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Logs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, action, targetType, targetId, metadata, createdAt]
+                      properties:
+                        id: { type: string }
+                        actorId: { type: string, nullable: true }
+                        action: { type: string }
+                        targetType: { type: string }
+                        targetId: { type: string }
+                        metadata: { type: string }
+                        ip: { type: string, nullable: true }
+                        userAgent: { type: string, nullable: true }
+                        createdAt: { type: string, format: date-time }
+                  pageInfo: { $ref: '#/components/schemas/PageInfo' }
+
+  /admin/reports:
+    get:
+      tags: [Admin]
+      summary: List reports across all boards (Admin only)
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, accepted, rejected] }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Report' }
+                  pageInfo: { $ref: '#/components/schemas/PageInfo' }
+

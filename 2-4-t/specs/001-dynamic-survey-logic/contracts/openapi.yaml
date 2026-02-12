@@ -1,0 +1,852 @@
+openapi: 3.0.3
+info:
+  title: Dynamic Survey Logic API
+  version: 0.1.0
+  description: |
+    問卷／表單系統（動態邏輯）API 契約。
+
+    Source of truth: specs/001-dynamic-survey-logic/spec.md
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: auth
+  - name: surveys
+  - name: public
+  - name: results
+
+paths:
+  /login:
+    post:
+      tags: [auth]
+      summary: Login
+      operationId: login
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Session cookie (sid)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /logout:
+    post:
+      tags: [auth]
+      summary: Logout
+      operationId: logout
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - $ref: '#/components/parameters/XCsrfTokenHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /surveys:
+    get:
+      tags: [surveys]
+      summary: List surveys (owner only)
+      operationId: listSurveys
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  surveys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SurveySummary'
+                required: [surveys]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [surveys]
+      summary: Create draft survey
+      operationId: createSurvey
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - $ref: '#/components/parameters/XCsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSurveyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  survey:
+                    $ref: '#/components/schemas/SurveySummary'
+                required: [survey]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /surveys/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      tags: [surveys]
+      summary: Get survey detail (owner only)
+      operationId: getSurvey
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  survey:
+                    $ref: '#/components/schemas/SurveyDetail'
+                required: [survey]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    patch:
+      tags: [surveys]
+      summary: Update survey (draft structure or text-only when locked)
+      operationId: updateSurvey
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - $ref: '#/components/parameters/XCsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSurveyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  survey:
+                    $ref: '#/components/schemas/SurveyDetail'
+                required: [survey]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /surveys/{id}/publish:
+    post:
+      tags: [surveys]
+      summary: Publish draft survey
+      operationId: publishSurvey
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - $ref: '#/components/parameters/XCsrfTokenHeader'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  survey:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        $ref: '#/components/schemas/SurveyStatus'
+                      publish_hash:
+                        type: string
+                    required: [id, status, publish_hash]
+                required: [survey]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /surveys/{id}/close:
+    post:
+      tags: [surveys]
+      summary: Close published survey
+      operationId: closeSurvey
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - $ref: '#/components/parameters/XCsrfTokenHeader'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  survey:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        $ref: '#/components/schemas/SurveyStatus'
+                    required: [id, status]
+                required: [survey]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /s/{slug}:
+    get:
+      tags: [public]
+      summary: Get public survey (published only)
+      operationId: getPublicSurvey
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  survey:
+                    $ref: '#/components/schemas/PublicSurvey'
+                  publish_hash:
+                    type: string
+                required: [survey, publish_hash]
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /s/{slug}/responses:
+    post:
+      tags: [public]
+      summary: Submit response (server recomputes visibility)
+      operationId: submitResponse
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitResponseRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  response:
+                    $ref: '#/components/schemas/SubmitResponseResponse'
+                required: [response]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /surveys/{id}/results:
+    get:
+      tags: [results]
+      summary: Get results aggregates (owner only)
+      operationId: getResults
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /surveys/{id}/export:
+    get:
+      tags: [results]
+      summary: Export responses (owner only)
+      operationId: exportResponses
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestIdHeader'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  export:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      format:
+                        type: string
+                        enum: [json, csv]
+                      rows:
+                        description: JSON rows or CSV string (when format=csv)
+                        oneOf:
+                          - type: array
+                            items: {}
+                          - type: string
+                    required: [format, rows]
+                required: [export]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sid
+
+  parameters:
+    XRequestIdHeader:
+      name: x-request-id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Optional request correlation id. If omitted, server generates one.
+
+    XCsrfTokenHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: CSRF token for unsafe methods (POST/PATCH/DELETE).
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Too Many Requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable error code
+            message:
+              type: string
+              description: User-facing summary
+            request_id:
+              type: string
+              nullable: true
+              description: Request correlation id (matches x-request-id)
+            details:
+              description: Optional structured details for UI/dev
+              nullable: true
+          required: [code, message]
+      required: [error]
+
+    SurveyStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, CLOSED]
+
+    QuestionType:
+      type: string
+      enum: [SC, MC, TEXT, NUMBER, RATING, MATRIX]
+
+    RuleAction:
+      type: string
+      enum: [show, hide]
+
+    GroupOperator:
+      type: string
+      enum: [AND, OR]
+
+    RuleOperator:
+      type: string
+      enum: [equals, not_equals, contains]
+
+    User:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+      required: [id, email]
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        return_to:
+          type: string
+          nullable: true
+      required: [email, password]
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        return_to:
+          type: string
+          nullable: true
+      required: [user]
+
+    SurveySummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/SurveyStatus'
+        is_anonymous:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, slug, title, status, is_anonymous, created_at]
+
+    CreateSurveyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        is_anonymous:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+      required: [title, slug, is_anonymous]
+
+    UpdateSurveyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_anonymous:
+          type: boolean
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        rule_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleGroup'
+
+    SurveyDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        owner_user_id:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/SurveyStatus'
+        is_anonymous:
+          type: boolean
+        publish_hash:
+          type: string
+          nullable: true
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        rule_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleGroup'
+      required: [id, owner_user_id, slug, title, status, is_anonymous, questions, rule_groups]
+
+    PublicSurvey:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_anonymous:
+          type: boolean
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        rule_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleGroup'
+      required: [id, slug, title, is_anonymous, questions, rule_groups]
+
+    Question:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        order:
+          type: integer
+          minimum: 1
+        type:
+          $ref: '#/components/schemas/QuestionType'
+        required:
+          type: boolean
+        prompt:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/Option'
+        config:
+          description: Type-specific config (rating scale, matrix rows/cols, etc.)
+          nullable: true
+      required: [id, order, type, required, prompt]
+
+    Option:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        value:
+          type: string
+        label:
+          type: string
+      required: [id, value, label]
+
+    RuleGroup:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        target_question_id:
+          type: string
+        action:
+          $ref: '#/components/schemas/RuleAction'
+        group_operator:
+          $ref: '#/components/schemas/GroupOperator'
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogicRule'
+      required: [id, target_question_id, action, group_operator, rules]
+
+    LogicRule:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        source_question_id:
+          type: string
+        operator:
+          $ref: '#/components/schemas/RuleOperator'
+        value:
+          description: Canonical value (Zod validated)
+      required: [id, source_question_id, operator, value]
+
+    SubmitResponseRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        publish_hash:
+          type: string
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmitAnswer'
+      required: [publish_hash, answers]
+
+    SubmitAnswer:
+      type: object
+      additionalProperties: false
+      properties:
+        question_id:
+          type: string
+        value:
+          description: Answer value (type-dependent)
+      required: [question_id, value]
+
+    SubmitResponseResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+        publish_hash:
+          type: string
+        response_hash:
+          type: string
+      required: [id, submitted_at, publish_hash, response_hash]
+
+    ResultsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        publish_hash:
+          type: string
+        response_count:
+          type: integer
+          minimum: 0
+        aggregates:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionAggregate'
+      required: [publish_hash, response_count, aggregates]
+
+    QuestionAggregate:
+      type: object
+      additionalProperties: false
+      properties:
+        question_id:
+          type: string
+        type:
+          $ref: '#/components/schemas/QuestionType'
+        summary:
+          description: Aggregate payload (counts, distributions, etc.)
+      required: [question_id, type, summary]

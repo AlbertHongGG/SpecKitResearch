@@ -1,0 +1,27 @@
+# Node
+node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+
+# Env
+.env*
+
+# OS / IDE
+.DS_Store
+.idea/
+
+# SQLite / Prisma
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+backend/prisma/dev.db
+
+# Attachments (append-only runtime data)
+storage/attachments/

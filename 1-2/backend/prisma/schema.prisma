@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  employee
+  manager
+}
+
+enum LeaveRequestStatus {
+  draft
+  submitted
+  approved
+  rejected
+  cancelled
+}
+
+enum ApprovalAction {
+  submit
+  cancel
+  approve
+  reject
+}
+
+enum LedgerType {
+  reserve
+  release_reserve
+  deduct
+  refund
+}
+
+enum AttachmentStatus {
+  TEMP
+  ACTIVE
+  DELETED
+}
+
+model Department {
+  id   String @id @default(uuid())
+  name String @unique
+
+  users User[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  managerId String?
+  manager   User?  @relation("UserManager", fields: [managerId], references: [id])
+  reports   User[] @relation("UserManager")
+
+  leaveRequests         LeaveRequest[]      @relation("LeaveRequestOwner")
+  approvalsGiven        LeaveRequest[]      @relation("ApprovedBy")
+  approvalLogs          LeaveApprovalLog[]
+  leaveBalances         LeaveBalance[]
+  attachments           Attachment[]
+  refreshSessions       AuthRefreshSession[]
+  dayBlocks             LeaveRequestDayBlock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeaveType {
+  id                String  @id @default(uuid())
+  name              String  @unique
+  annualQuota       Float
+  carryOver         Boolean @default(false)
+  requireAttachment Boolean @default(false)
+  isActive          Boolean @default(true)
+
+  leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeaveRequest {
+  id         String            @id @default(uuid())
+  userId     String
+  leaveTypeId String
+
+  startDate DateTime
+  endDate   DateTime
+  days      Float
+
+  reason String?
+
+  status LeaveRequestStatus @default(draft)
+
+  submittedAt DateTime?
+
+  approverId String?
+  approver   User?     @relation("ApprovedBy", fields: [approverId], references: [id])
+
+  decidedAt        DateTime?
+  rejectionReason  String?
+
+  cancelledAt DateTime?
+
+  user      User      @relation("LeaveRequestOwner", fields: [userId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  dayBlocks    LeaveRequestDayBlock[]
+  ledgerEntries LeaveBalanceLedger[]
+  approvalLogs LeaveApprovalLog[]
+  attachments  Attachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startDate, endDate])
+  @@index([status, submittedAt])
+  @@index([leaveTypeId, startDate])
+}
+
+model LeaveApprovalLog {
+  id            String         @id @default(uuid())
+  leaveRequestId String
+  actorId       String
+  action        ApprovalAction
+  note          String?
+  createdAt     DateTime @default(now())
+
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+  actor        User         @relation(fields: [actorId], references: [id])
+
+  @@index([leaveRequestId, createdAt])
+}
+
+model LeaveBalance {
+  id         String @id @default(uuid())
+  userId     String
+  leaveTypeId String
+  year       Int
+
+  quota        Float
+  usedDays     Float @default(0)
+  reservedDays Float @default(0)
+
+  user      User      @relation(fields: [userId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  ledgerEntries LeaveBalanceLedger[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, leaveTypeId, year])
+  @@index([userId, year])
+}
+
+model LeaveBalanceLedger {
+  id            String     @id @default(uuid())
+  leaveBalanceId String
+  leaveRequestId String
+  type          LedgerType
+  days          Float
+  createdAt     DateTime @default(now())
+
+  leaveBalance LeaveBalance @relation(fields: [leaveBalanceId], references: [id])
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+
+  @@unique([leaveRequestId, type])
+  @@index([leaveBalanceId, createdAt])
+}
+
+model LeaveRequestDayBlock {
+  id            String   @id @default(uuid())
+  userId        String
+  date          DateTime
+  leaveRequestId String
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id])
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([leaveRequestId])
+}
+
+model Attachment {
+  id              String           @id @default(uuid())
+  ownerUserId     String
+  leaveRequestId  String?
+
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  storageKey       String
+  status           AttachmentStatus @default(TEMP)
+
+  owner       User         @relation(fields: [ownerUserId], references: [id])
+  leaveRequest LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([leaveRequestId])
+  @@index([ownerUserId, createdAt])
+}
+
+model AuthRefreshSession {
+  id                 String   @id @default(uuid())
+  userId             String
+  tokenHash          String   @unique
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  replacedBySessionId String?
+  replacedBySession   AuthRefreshSession? @relation("RefreshReplace", fields: [replacedBySessionId], references: [id])
+  replacedSessions    AuthRefreshSession[] @relation("RefreshReplace")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+}

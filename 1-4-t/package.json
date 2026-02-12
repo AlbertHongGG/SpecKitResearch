@@ -1,0 +1,10 @@
+{
+  "name": "helpdesk-ticket-system",
+  "private": true,
+  "scripts": {
+    "dev:be": "npm --prefix backend run dev",
+    "dev:fe": "npm --prefix frontend run dev",
+    "test:be": "npm --prefix backend test",
+    "test:fe": "npm --prefix frontend test"
+  }
+}

@@ -1,0 +1,11 @@
+export type MailMessage = {
+  to: string;
+  subject: string;
+  text: string;
+};
+
+export interface Mailer {
+  send(msg: MailMessage): Promise<void>;
+}
+
+export const MAILER = Symbol('MAILER');

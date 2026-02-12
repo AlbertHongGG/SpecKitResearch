@@ -1,0 +1,1054 @@
+openapi: 3.0.3
+info:
+  title: Content-based Online Course Platform API
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - sessionAuth: []
+paths:
+  /auth/register:
+    post:
+      summary: Register with email/password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMessage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /auth/login:
+    post:
+      summary: Login with email/password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /auth/logout:
+    post:
+      summary: Logout current session
+      responses:
+        '204':
+          description: Logged out
+  /courses:
+    get:
+      summary: List published courses
+      security: []
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: categoryId
+          schema:
+            type: string
+        - in: query
+          name: tagId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Courses list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+  /courses/{courseId}:
+    get:
+      summary: Get course marketing detail
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Course detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/purchase:
+    post:
+      summary: Purchase published course
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '201':
+          description: Purchased
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Purchase'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /my-courses:
+    get:
+      summary: List purchased courses with progress
+      responses:
+        '200':
+          description: My courses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyCourseList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /my-courses/{courseId}:
+    get:
+      summary: Get course reader content
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Course content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /my-courses/{courseId}/lessons/{lessonId}/progress:
+    put:
+      summary: Mark lesson progress
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/LessonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonProgressRequest'
+      responses:
+        '200':
+          description: Progress updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /files/lessons/{lessonId}:
+    get:
+      summary: Get protected lesson file
+      parameters:
+        - $ref: '#/components/parameters/LessonId'
+      responses:
+        '200':
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  name:
+                    type: string
+                    nullable: true
+                  contentType:
+                    type: string
+                    enum: [image, pdf]
+                required: [url, contentType]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /instructor/courses:
+    get:
+      summary: List instructor courses
+      responses:
+        '200':
+          description: Instructor courses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create course (draft)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseCreateRequest'
+      responses:
+        '201':
+          description: Course created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /instructor/courses/{courseId}:
+    get:
+      summary: Get instructor course detail
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Course detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update course detail
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /instructor/courses/{courseId}/submit:
+    post:
+      summary: Submit course for review
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /instructor/courses/{courseId}/archive:
+    post:
+      summary: Archive course (instructor)
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /instructor/courses/{courseId}/publish:
+    post:
+      summary: Publish course (instructor)
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /instructor/courses/{courseId}/curriculum/sections:
+    post:
+      summary: Create section
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /instructor/courses/{courseId}/curriculum/sections/{sectionId}/lessons:
+    post:
+      summary: Create lesson
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/SectionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/review:
+    get:
+      summary: List submitted courses for review
+      responses:
+        '200':
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/review/{courseId}:
+    post:
+      summary: Review course (approve/reject)
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseReviewRequest'
+      responses:
+        '200':
+          description: Reviewed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseReview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/courses:
+    get:
+      summary: List all courses (admin)
+      responses:
+        '200':
+          description: Courses list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/courses/{courseId}/archive:
+    post:
+      summary: Archive course (admin)
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/courses/{courseId}/publish:
+    post:
+      summary: Publish course (admin)
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/taxonomy/categories:
+    get:
+      summary: List categories
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+  /admin/taxonomy/tags:
+    get:
+      summary: List tags
+      responses:
+        '200':
+          description: Tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagList'
+    post:
+      summary: Create tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+  /admin/users:
+    get:
+      summary: List users
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+  /admin/users/{userId}:
+    patch:
+      summary: Update user status/role
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /admin/stats:
+    get:
+      summary: Platform stats
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformStats'
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+  parameters:
+    CourseId:
+      in: path
+      name: courseId
+      required: true
+      schema:
+        type: string
+    SectionId:
+      in: path
+      name: sectionId
+      required: true
+      schema:
+        type: string
+    LessonId:
+      in: path
+      name: lessonId
+      required: true
+      schema:
+        type: string
+    UserId:
+      in: path
+      name: userId
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Not authorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict / duplicate
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+      required: [code, message]
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+      required: [email, password]
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+      required: [email, password]
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [student, instructor, admin]
+      required: [id, email, role]
+    AuthMessage:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    Course:
+      type: object
+      properties:
+        id:
+          type: string
+        instructorId:
+          type: string
+        categoryId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        coverImageUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, submitted, published, rejected, archived]
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, instructorId, categoryId, title, description, price, status]
+    CourseList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+      required: [items]
+    CourseDetail:
+      allOf:
+        - $ref: '#/components/schemas/Course'
+        - type: object
+          properties:
+            tags:
+              type: array
+              items:
+                $ref: '#/components/schemas/Tag'
+            sections:
+              type: array
+              items:
+                $ref: '#/components/schemas/SectionOutline'
+    CourseContent:
+      type: object
+      properties:
+        course:
+          $ref: '#/components/schemas/Course'
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/Section'
+      required: [course, sections]
+    CourseCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: string
+        tagIds:
+          type: array
+          items:
+            type: string
+        price:
+          type: integer
+          minimum: 0
+        coverImageUrl:
+          type: string
+          nullable: true
+      required: [title, description, categoryId, price]
+    CourseUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: string
+        tagIds:
+          type: array
+          items:
+            type: string
+        price:
+          type: integer
+          minimum: 0
+        coverImageUrl:
+          type: string
+          nullable: true
+    SectionOutline:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        order:
+          type: integer
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonOutline'
+      required: [id, title, order, lessons]
+    Section:
+      type: object
+      properties:
+        id:
+          type: string
+        courseId:
+          type: string
+        title:
+          type: string
+        order:
+          type: integer
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lesson'
+      required: [id, courseId, title, order]
+    SectionCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        order:
+          type: integer
+      required: [title, order]
+    LessonOutline:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        order:
+          type: integer
+      required: [id, title, order]
+    Lesson:
+      type: object
+      properties:
+        id:
+          type: string
+        sectionId:
+          type: string
+        title:
+          type: string
+        order:
+          type: integer
+        contentType:
+          type: string
+          enum: [text, image, pdf]
+        contentText:
+          type: string
+          nullable: true
+        contentImageUrl:
+          type: string
+          nullable: true
+        contentFileUrl:
+          type: string
+          nullable: true
+        contentFileName:
+          type: string
+          nullable: true
+      required: [id, sectionId, title, order, contentType]
+    LessonCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        order:
+          type: integer
+        contentType:
+          type: string
+          enum: [text, image, pdf]
+        contentText:
+          type: string
+          nullable: true
+        contentImageUrl:
+          type: string
+          nullable: true
+        contentFileUrl:
+          type: string
+          nullable: true
+        contentFileName:
+          type: string
+          nullable: true
+      required: [title, order, contentType]
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        courseId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, userId, courseId, createdAt]
+    MyCourseList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyCourse'
+      required: [items]
+    MyCourse:
+      type: object
+      properties:
+        course:
+          $ref: '#/components/schemas/Course'
+        purchasedAt:
+          type: string
+          format: date-time
+        progress:
+          $ref: '#/components/schemas/CourseProgress'
+      required: [course, purchasedAt, progress]
+    CourseProgress:
+      type: object
+      properties:
+        completedLessons:
+          type: integer
+        totalLessons:
+          type: integer
+      required: [completedLessons, totalLessons]
+    LessonProgressRequest:
+      type: object
+      properties:
+        isCompleted:
+          type: boolean
+      required: [isCompleted]
+    LessonProgress:
+      type: object
+      properties:
+        lessonId:
+          type: string
+        isCompleted:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [lessonId, isCompleted]
+    CourseReviewRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [published, rejected]
+        reason:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+      required: [decision]
+    CourseReview:
+      type: object
+      properties:
+        id:
+          type: string
+        courseId:
+          type: string
+        adminId:
+          type: string
+        decision:
+          type: string
+          enum: [published, rejected]
+        reason:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, courseId, adminId, decision, createdAt]
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+      required: [id, name, isActive]
+    CategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+      required: [name]
+    CategoryList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+      required: [items]
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+      required: [id, name, isActive]
+    TagRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+      required: [name]
+    TagList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+      required: [items]
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [student, instructor, admin]
+        isActive:
+          type: boolean
+      required: [id, email, role, isActive]
+    UserList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+      required: [items]
+    UserUpdateRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [student, instructor, admin]
+        isActive:
+          type: boolean
+    PlatformStats:
+      type: object
+      properties:
+        courseCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        purchaseCount:
+          type: integer
+        userCount:
+          type: integer
+      required: [courseCounts, purchaseCount, userCount]

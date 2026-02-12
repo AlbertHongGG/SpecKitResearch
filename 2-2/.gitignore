@@ -1,0 +1,23 @@
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+
+# Frontend/Backend env
+.env*
+
+# TypeScript
+*.tsbuildinfo
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/

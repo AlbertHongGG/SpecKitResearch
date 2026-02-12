@@ -1,0 +1,724 @@
+openapi: 3.0.3
+info:
+  title: Personal Expense Tracking API
+  version: 0.1.0
+  description: |
+    個人記帳＋月報表網站的 REST API 契約。
+
+    注意：本契約描述「本系統對外的語意」。本專案實作為 Next.js Route Handlers + 自訂 JWT cookie session。
+
+    Drift policy: 當實作與契約不一致時，以「行為/回應」為準同步更新本檔；避免讓契約與程式長期分叉。
+servers:
+  - url: /api
+
+tags:
+  - name: Auth
+  - name: Categories
+  - name: Transactions
+  - name: Reports
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: auth_session
+      description: |
+        代表已登入使用者的 httpOnly session cookie（內容為 JWT）。
+        Cookie 名稱在不同環境/設定可能不同；本專案預設由 `AUTH_COOKIE_NAME` 決定。
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: 內部錯誤代碼（利於除錯與追蹤）
+            message:
+              type: string
+              description: 使用者可理解且可行動的訊息（不含敏感資訊）
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+    CategoryType:
+      type: string
+      enum: [income, expense, both]
+    TransactionType:
+      type: string
+      enum: [income, expense]
+    Category:
+      type: object
+      required: [id, name, type, isActive, isDefault]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          maxLength: 20
+        type:
+          $ref: '#/components/schemas/CategoryType'
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+    Transaction:
+      type: object
+      required: [id, type, amount, categoryId, date]
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: integer
+          minimum: 1
+          description: 正整數
+        categoryId:
+          type: string
+        date:
+          type: string
+          format: date
+        note:
+          type: string
+          maxLength: 200
+    PageInfo:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+    DailySummary:
+      type: object
+      required: [date, incomeTotal, expenseTotal]
+      properties:
+        date:
+          type: string
+          format: date
+        incomeTotal:
+          type: integer
+          minimum: 0
+        expenseTotal:
+          type: integer
+          minimum: 0
+    MonthlyTotals:
+      type: object
+      required: [income, expense, net]
+      properties:
+        income:
+          type: integer
+          minimum: 0
+        expense:
+          type: integer
+          minimum: 0
+        net:
+          type: integer
+    ExpenseByCategoryItem:
+      type: object
+      required: [categoryId, categoryName, amount, percent]
+      properties:
+        categoryId:
+          type: string
+        categoryName:
+          type: string
+        amount:
+          type: integer
+          minimum: 0
+        percent:
+          type: number
+          minimum: 0
+          maximum: 100
+    DailySeriesItem:
+      type: object
+      required: [date, income, expense]
+      properties:
+        date:
+          type: string
+          format: date
+        income:
+          type: integer
+          minimum: 0
+        expense:
+          type: integer
+          minimum: 0
+    MonthlyReport:
+      type: object
+      required: [year, month, totals, expenseByCategory, dailySeries]
+      properties:
+        year:
+          type: integer
+          minimum: 2000
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        totals:
+          $ref: '#/components/schemas/MonthlyTotals'
+        expenseByCategory:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseByCategoryItem'
+        dailySeries:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailySeriesItem'
+
+security:
+  - sessionCookie: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 註冊（建立帳號，成功後可視需求自動登入）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, passwordConfirm]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                passwordConfirm:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: 註冊成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '409':
+          description: Email 已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 驗證失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 登入
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: 登入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signedIn]
+                properties:
+                  signedIn:
+                    type: boolean
+                    enum: [true]
+        '401':
+          description: 帳密錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signedIn]
+                properties:
+                  signedIn:
+                    type: boolean
+                    enum: [false]
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /categories:
+    get:
+      tags: [Categories]
+      summary: 取得可見類別清單（含預設 + 自訂）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories]
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Categories]
+      summary: 新增自訂類別
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                  maxLength: 20
+                type:
+                  $ref: '#/components/schemas/CategoryType'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category]
+                properties:
+                  category:
+                    $ref: '#/components/schemas/Category'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 名稱重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 驗證失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /categories/{categoryId}:
+    patch:
+      tags: [Categories]
+      summary: 更新類別（改名/調整 type/停用或啟用）
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 20
+                type:
+                  $ref: '#/components/schemas/CategoryType'
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category]
+                properties:
+                  category:
+                    $ref: '#/components/schemas/Category'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 無權限（嘗試更新他人類別）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 類別不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 名稱重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: 取得帳務列表（分頁）
+      description: |
+        回傳交易明細與（可選）每日小計。pageSize 預設 30。
+      parameters:
+        - name: page
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                  pageInfo:
+                    $ref: '#/components/schemas/PageInfo'
+                  dailySummaries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DailySummary'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Transactions]
+      summary: 新增帳務
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount, categoryId, date]
+              properties:
+                type:
+                  $ref: '#/components/schemas/TransactionType'
+                amount:
+                  type: integer
+                  minimum: 1
+                categoryId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                note:
+                  type: string
+                  maxLength: 200
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transaction]
+                properties:
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 無權限（類別不屬於自己且非預設）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 類別不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 驗證失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transactions/{transactionId}:
+    patch:
+      tags: [Transactions]
+      summary: 更新帳務
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  $ref: '#/components/schemas/TransactionType'
+                amount:
+                  type: integer
+                  minimum: 1
+                categoryId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                note:
+                  type: string
+                  maxLength: 200
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transaction]
+                properties:
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 無權限（嘗試更新他人交易/引用他人類別）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 交易不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 驗證失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Transactions]
+      summary: 刪除帳務
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: boolean
+                    enum: [true]
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 無權限（嘗試刪除他人交易）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 交易不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /reports/monthly:
+    get:
+      tags: [Reports]
+      summary: 取得指定年月月報表
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyReport'
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 驗證失敗（年月不合法）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /reports/monthly/export:
+    get:
+      tags: [Reports]
+      summary: 匯出指定年月交易 CSV
+      description: |
+        下載內容需與畫面顯示一致。若該月無資料，回傳空檔（僅 header）或以明確錯誤訊息提示無資料；兩者需擇一並在實作中保持一致。
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: 未登入
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 驗證失敗（年月不合法）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

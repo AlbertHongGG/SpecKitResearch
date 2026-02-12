@@ -1,0 +1,722 @@
+openapi: 3.0.3
+info:
+  title: Personal Expense Tracking API
+  version: 1.0.0
+  description: |
+    個人記帳＋月報表系統的契約（以 cookie session 為主）。
+    本契約用來做 contract testing 與前後端一致性驗收。
+servers:
+  - url: https://example.com
+    description: Production (placeholder)
+  - url: http://localhost:3000
+    description: Local (placeholder)
+
+security:
+  - cookieAuth: []
+
+tags:
+  - name: Auth
+  - name: Transactions
+  - name: Categories
+  - name: Reports
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: HttpOnly session cookie
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+          example: AUTH_REQUIRED
+        message:
+          type: string
+          example: 請先登入
+        requestId:
+          type: string
+          example: req_01HZY...
+        details:
+          type: object
+          additionalProperties: true
+
+    User:
+      type: object
+      required: [id, email, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CategoryType:
+      type: string
+      enum: [income, expense, both]
+
+    TransactionType:
+      type: string
+      enum: [income, expense]
+
+    Category:
+      type: object
+      required: [id, name, type, isActive, isDefault]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 20
+        type:
+          $ref: '#/components/schemas/CategoryType'
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+
+    Transaction:
+      type: object
+      required: [id, type, amount, categoryId, categoryName, date, note]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: integer
+          minimum: 1
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        date:
+          type: string
+          format: date
+          example: '2026-02-01'
+        note:
+          type: string
+          nullable: true
+          maxLength: 200
+
+    PagedTransactions:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+
+    DailyTotals:
+      type: object
+      required: [date, incomeTotal, expenseTotal]
+      properties:
+        date:
+          type: string
+          format: date
+        incomeTotal:
+          type: integer
+          minimum: 0
+        expenseTotal:
+          type: integer
+          minimum: 0
+
+    MonthlyTotals:
+      type: object
+      required: [totalIncome, totalExpense, net]
+      properties:
+        totalIncome:
+          type: integer
+          minimum: 0
+        totalExpense:
+          type: integer
+          minimum: 0
+        net:
+          type: integer
+
+    CategorySpend:
+      type: object
+      required: [categoryId, categoryName, amount, percent]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        amount:
+          type: integer
+          minimum: 0
+        percent:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+
+    DayIncomeExpense:
+      type: object
+      required: [date, incomeAmount, expenseAmount]
+      properties:
+        date:
+          type: string
+          format: date
+        incomeAmount:
+          type: integer
+          minimum: 0
+        expenseAmount:
+          type: integer
+          minimum: 0
+
+    MonthlyReport:
+      type: object
+      required: [year, month, totals, expenseByCategory, byDay]
+      properties:
+        year:
+          type: integer
+          minimum: 2000
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        totals:
+          $ref: '#/components/schemas/MonthlyTotals'
+        expenseByCategory:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategorySpend'
+        byDay:
+          type: array
+          items:
+            $ref: '#/components/schemas/DayIncomeExpense'
+
+  responses:
+    Unauthorized:
+      description: 未登入或 session 失效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 無權限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 資源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+paths:
+  /session:
+    get:
+      tags: [Auth]
+      summary: 取得目前登入狀態
+      security: []
+      responses:
+        '200':
+          description: 已登入
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authenticated, user]
+                properties:
+                  authenticated:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 註冊（成功後自動登入）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, passwordConfirm]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                passwordConfirm:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: 註冊成功並建立 session
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly session cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: 驗證錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email 已被使用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登入
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登入成功並建立 session
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出（使 session 失效）
+      responses:
+        '200':
+          description: 登出成功
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: 清除 session cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /categories:
+    get:
+      tags: [Categories]
+      summary: 列出類別（含預設/自訂，含停用）
+      parameters:
+        - in: query
+          name: includeInactive
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Categories]
+      summary: 新增自訂類別
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 20
+                type:
+                  $ref: '#/components/schemas/CategoryType'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: 驗證錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 類別名稱重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /categories/{categoryId}:
+    put:
+      tags: [Categories]
+      summary: 編輯類別（名稱/類型）
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 20
+                type:
+                  $ref: '#/components/schemas/CategoryType'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 類別名稱重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /categories/{categoryId}/active:
+    patch:
+      tags: [Categories]
+      summary: 啟用/停用類別
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              properties:
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: 列出交易（分頁）
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedTransactions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Transactions]
+      summary: 新增交易
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount, categoryId, date]
+              properties:
+                type:
+                  $ref: '#/components/schemas/TransactionType'
+                amount:
+                  type: integer
+                  minimum: 1
+                categoryId:
+                  type: string
+                  format: uuid
+                date:
+                  type: string
+                  format: date
+                note:
+                  type: string
+                  maxLength: 200
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: 驗證錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 類別不存在或不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /transactions/{transactionId}:
+    put:
+      tags: [Transactions]
+      summary: 編輯交易
+      parameters:
+        - in: path
+          name: transactionId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount, categoryId, date]
+              properties:
+                type:
+                  $ref: '#/components/schemas/TransactionType'
+                amount:
+                  type: integer
+                  minimum: 1
+                categoryId:
+                  type: string
+                  format: uuid
+                date:
+                  type: string
+                  format: date
+                note:
+                  type: string
+                  maxLength: 200
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Transactions]
+      summary: 刪除交易
+      parameters:
+        - in: path
+          name: transactionId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reports/monthly:
+    get:
+      tags: [Reports]
+      summary: 取得指定年月月報表（聚合）
+      parameters:
+        - in: query
+          name: year
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+        - in: query
+          name: month
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/monthly/csv:
+    get:
+      tags: [Reports]
+      summary: 匯出指定年月交易 CSV
+      parameters:
+        - in: query
+          name: year
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+        - in: query
+          name: month
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: 下載 CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'

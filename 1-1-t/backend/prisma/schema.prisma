@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  member
+  admin
+}
+
+enum ActivityStatus {
+  draft
+  published
+  full
+  closed
+  archived
+}
+
+enum AuditResult {
+  success
+  fail
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  role         Role          @default(member)
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  activities    Activity[]
+  registrations Registration[]
+  auditEvents   AuditEvent[]
+}
+
+model Activity {
+  id              String         @id @default(cuid())
+  title           String
+  description     String
+  date            DateTime
+  deadline        DateTime
+  location        String
+  capacity        Int
+  registeredCount Int            @default(0)
+  status          ActivityStatus @default(draft)
+
+  createdByUserId String
+  createdBy       User           @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  registrations Registration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([date])
+  @@index([deadline])
+  @@index([createdByUserId])
+}
+
+model Registration {
+  id         String   @id @default(cuid())
+  userId     String
+  activityId String
+  createdAt  DateTime @default(now())
+  canceledAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@index([activityId])
+  @@index([userId])
+  @@index([canceledAt])
+}
+
+model AuditEvent {
+  id          String      @id @default(cuid())
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String
+  at          DateTime    @default(now())
+  result      AuditResult
+  metadata    Json?
+
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([actorUserId, at])
+  @@index([targetType, targetId])
+  @@index([action, at])
+}

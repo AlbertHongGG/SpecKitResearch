@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  employee
+  manager
+}
+
+enum LeaveRequestStatus {
+  draft
+  submitted
+  approved
+  rejected
+  cancelled
+}
+
+enum LedgerType {
+  reserve
+  release_reserve
+  deduct
+  refund
+}
+
+enum ApprovalAction {
+  submit
+  cancel
+  approve
+  reject
+}
+
+model Department {
+  id   String @id @default(uuid())
+  name String @unique
+
+  users User[]
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         Role
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  departmentId String     @map("department_id")
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  managerId    String?    @map("manager_id")
+  manager      User?      @relation("ManagerReports", fields: [managerId], references: [id])
+  reports      User[]     @relation("ManagerReports")
+
+  leaveRequests    LeaveRequest[]
+  leaveBalances    LeaveBalance[]
+  approvalLogs     LeaveApprovalLog[] @relation("ApprovalLogActor")
+  uploadedFiles    Attachment[]
+  approvalsDecided LeaveRequest[]     @relation("ApproverDecisions")
+}
+
+model LeaveType {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  annualQuota       Int      @map("annual_quota")
+  carryOver         Boolean  @default(false) @map("carry_over")
+  requireAttachment Boolean  @default(false) @map("require_attachment")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  leaveRequests LeaveRequest[]
+  balances      LeaveBalance[]
+}
+
+model Attachment {
+  id               String   @id @default(uuid())
+  ownerUserId      String   @map("owner_user_id")
+  ownerUser        User     @relation(fields: [ownerUserId], references: [id])
+  storageKey       String   @unique @map("storage_key")
+  originalFilename String   @map("original_filename")
+  mimeType         String   @map("mime_type")
+  sizeBytes        Int      @map("size_bytes")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  leaveRequests LeaveRequest[]
+}
+
+model LeaveRequest {
+  id          String            @id @default(uuid())
+  userId      String            @map("user_id")
+  user        User              @relation(fields: [userId], references: [id])
+  leaveTypeId String            @map("leave_type_id")
+  leaveType   LeaveType         @relation(fields: [leaveTypeId], references: [id])
+
+  startDate String @map("start_date")
+  endDate   String @map("end_date")
+  days      Int
+  reason    String
+
+  attachmentId String?     @map("attachment_id")
+  attachment   Attachment? @relation(fields: [attachmentId], references: [id])
+
+  status          LeaveRequestStatus
+  approverId      String?  @map("approver_id")
+  approver        User?    @relation("ApproverDecisions", fields: [approverId], references: [id])
+  rejectionReason String?  @map("rejection_reason")
+
+  submittedAt DateTime? @map("submitted_at")
+  decidedAt   DateTime? @map("decided_at")
+  cancelledAt DateTime? @map("cancelled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  ledgerEntries LeaveBalanceLedger[]
+  approvalLogs  LeaveApprovalLog[]
+
+  @@index([userId, startDate, endDate, status])
+  @@index([status, submittedAt])
+}
+
+model LeaveBalance {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id])
+  leaveTypeId String  @map("leave_type_id")
+  leaveType  LeaveType @relation(fields: [leaveTypeId], references: [id])
+  year       Int
+  quota      Int
+  usedDays   Int      @map("used_days")
+  reservedDays Int    @map("reserved_days")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  ledger LeaveBalanceLedger[]
+
+  @@unique([userId, leaveTypeId, year])
+}
+
+model LeaveBalanceLedger {
+  id            String    @id @default(uuid())
+  leaveBalanceId String   @map("leave_balance_id")
+  leaveBalance  LeaveBalance @relation(fields: [leaveBalanceId], references: [id])
+  leaveRequestId String   @map("leave_request_id")
+  leaveRequest  LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+  type          LedgerType
+  days          Int
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@unique([leaveRequestId, type])
+  @@index([leaveBalanceId, createdAt])
+}
+
+model LeaveApprovalLog {
+  id            String         @id @default(uuid())
+  leaveRequestId String        @map("leave_request_id")
+  leaveRequest  LeaveRequest   @relation(fields: [leaveRequestId], references: [id])
+  actorId       String         @map("actor_id")
+  actor         User           @relation("ApprovalLogActor", fields: [actorId], references: [id])
+  action        ApprovalAction
+  note          String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  @@index([leaveRequestId, createdAt])
+}

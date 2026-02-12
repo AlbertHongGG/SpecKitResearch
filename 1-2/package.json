@@ -1,0 +1,17 @@
+{
+    "name": "leave-management-system",
+    "private": true,
+    "version": "0.1.0",
+    "workspaces": [
+        "backend",
+        "frontend"
+    ],
+    "scripts": {
+        "dev:backend": "npm --prefix backend run start:dev",
+        "dev:frontend": "npm --prefix frontend run dev",
+        "dev": "npm --prefix backend run start:dev",
+        "build": "npm --prefix backend run build && npm --prefix frontend run build",
+        "test": "npm --prefix backend test && npm --prefix frontend test",
+        "lint": "npm --prefix backend run lint && npm --prefix frontend run lint"
+    }
+}

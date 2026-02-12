@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Builds
+/dist
+/build
+/.next
+/out
+
+# Coverage & reports
+/coverage
+/playwright-report
+/test-results
+
+# Generated
+prisma/migrations/
+
+# Lockfiles
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Misc
+*.min.js

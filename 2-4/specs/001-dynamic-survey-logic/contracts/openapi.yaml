@@ -1,0 +1,752 @@
+openapi: 3.0.3
+info:
+  title: Dynamic Survey/Form System API
+  version: 1.0.0
+  description: |
+    Logic-driven dynamic survey/form system (immutable responses, schema-stable published snapshots).
+    Auth is cookie-based session for admin/owner routes. Public survey filling is available via slug.
+servers:
+  - url: /
+
+tags:
+  - name: Auth
+  - name: Public
+  - name: Surveys
+  - name: Responses
+  - name: Results
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            Set-Cookie:
+              description: Session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/session:
+    get:
+      tags: [Auth]
+      summary: Get current session (and CSRF token)
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+
+  /public/surveys/{slug}:
+    get:
+      tags: [Public]
+      summary: Load a published survey by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Survey schema for filling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSurveyResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /surveys:
+    get:
+      tags: [Surveys]
+      summary: List surveys owned by current user
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: Survey list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SurveyListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Surveys]
+      summary: Create a new survey (Draft)
+      security:
+        - cookieSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSurveyRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSurveyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /surveys/{surveyId}:
+    get:
+      tags: [Surveys]
+      summary: Get survey (owner)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Survey detail (draft or published)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SurveyDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Surveys]
+      summary: Update survey (Draft structure or Published/Closed whitelist fields)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSurveyRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SurveyDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /surveys/{surveyId}/preview:
+    post:
+      tags: [Surveys]
+      summary: Preview a draft survey with provided answers (no Response created)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewSurveyRequest'
+      responses:
+        '200':
+          description: Preview visibility result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewSurveyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /surveys/{surveyId}/publish:
+    post:
+      tags: [Surveys]
+      summary: Publish a draft survey (compute publish_hash)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishSurveyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /surveys/{surveyId}/close:
+    post:
+      tags: [Surveys]
+      summary: Close a published survey
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CloseSurveyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /responses:
+    post:
+      tags: [Responses]
+      summary: Submit a response (server recomputes visibility + required + schema)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitResponseRequest'
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitResponseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /surveys/{surveyId}/results:
+    get:
+      tags: [Results]
+      summary: Get aggregated results (owner)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /surveys/{surveyId}/export:
+    get:
+      tags: [Results]
+      summary: Export responses (owner)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pagination cursor (implementation-defined; e.g., submitted_at+id)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
+      responses:
+        '200':
+          description: Exported responses page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: session
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unauthorized:
+              value: { code: UNAUTHORIZED, message: 'Authentication required', request_id: 'req_...' }
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            forbidden:
+              value: { code: FORBIDDEN, message: 'Not allowed', request_id: 'req_...' }
+
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    TooManyRequests:
+      description: Too Many Requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+  schemas:
+    Ok:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+
+    Error:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        request_id: { type: string }
+      required: [code, message, request_id]
+
+    FieldError:
+      type: object
+      properties:
+        path: { type: string }
+        message: { type: string }
+      required: [path, message]
+
+    ValidationError:
+      type: object
+      properties:
+        code: { type: string, enum: [VALIDATION_ERROR] }
+        message: { type: string }
+        request_id: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldError' }
+      required: [code, message, request_id, errors]
+
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+        return_to: { type: string }
+      required: [email, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+          required: [id, email]
+        return_to: { type: string }
+      required: [user]
+
+    SessionResponse:
+      type: object
+      properties:
+        authenticated: { type: boolean }
+        user:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+          required: [id, email]
+        csrf_token: { type: string }
+      required: [authenticated]
+
+    SurveyStatus:
+      type: string
+      enum: [Draft, Published, Closed]
+
+    Survey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        owner_user_id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        is_anonymous: { type: boolean }
+        status: { $ref: '#/components/schemas/SurveyStatus' }
+        publish_hash: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+      required: [id, owner_user_id, slug, title, is_anonymous, status, created_at]
+
+    QuestionType:
+      type: string
+      enum: [SingleChoice, MultipleChoice, Text, Number, Rating, Matrix]
+
+    Question:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        survey_id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/QuestionType' }
+        title: { type: string }
+        is_required: { type: boolean }
+        order: { type: integer }
+      required: [id, survey_id, type, title, is_required, order]
+
+    Option:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        question_id: { type: string, format: uuid }
+        label: { type: string }
+        value: { type: string }
+      required: [id, question_id, label, value]
+
+    RuleAction:
+      type: string
+      enum: [show, hide]
+
+    GroupOperator:
+      type: string
+      enum: [AND, OR]
+
+    RuleGroup:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        survey_id: { type: string, format: uuid }
+        target_question_id: { type: string, format: uuid }
+        action: { $ref: '#/components/schemas/RuleAction' }
+        group_operator: { $ref: '#/components/schemas/GroupOperator' }
+        rules:
+          type: array
+          items: { $ref: '#/components/schemas/LogicRule' }
+      required: [id, survey_id, target_question_id, action, group_operator, rules]
+
+    RuleOperator:
+      type: string
+      enum: [equals, not_equals, contains]
+
+    LogicRule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        rule_group_id: { type: string, format: uuid }
+        source_question_id: { type: string, format: uuid }
+        operator: { $ref: '#/components/schemas/RuleOperator' }
+        value: { type: string }
+      required: [id, rule_group_id, source_question_id, operator, value]
+
+    SurveyListResponse:
+      type: object
+      properties:
+        surveys:
+          type: array
+          items: { $ref: '#/components/schemas/Survey' }
+      required: [surveys]
+
+    CreateSurveyRequest:
+      type: object
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        description: { type: string }
+        is_anonymous: { type: boolean }
+      required: [slug, title, is_anonymous]
+
+    CreateSurveyResponse:
+      type: object
+      properties:
+        survey_id: { type: string, format: uuid }
+      required: [survey_id]
+
+    UpdateSurveyRequest:
+      type: object
+      properties:
+        patch:
+          type: object
+          description: Patch object; shape depends on status.
+      required: [patch]
+
+    SurveyDetailResponse:
+      type: object
+      properties:
+        survey: { $ref: '#/components/schemas/Survey' }
+        questions:
+          type: array
+          items: { $ref: '#/components/schemas/Question' }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/Option' }
+        rule_groups:
+          type: array
+          items: { $ref: '#/components/schemas/RuleGroup' }
+      required: [survey, questions, options, rule_groups]
+
+    PublicSurveyResponse:
+      type: object
+      properties:
+        survey:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            slug: { type: string }
+            title: { type: string }
+            description: { type: string, nullable: true }
+            is_anonymous: { type: boolean }
+            status: { $ref: '#/components/schemas/SurveyStatus' }
+          required: [id, slug, title, is_anonymous, status]
+        publish_hash: { type: string }
+        questions:
+          type: array
+          items: { $ref: '#/components/schemas/Question' }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/Option' }
+        rule_groups:
+          type: array
+          items: { $ref: '#/components/schemas/RuleGroup' }
+      required: [survey, publish_hash, questions, options, rule_groups]
+
+    PublishSurveyResponse:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/SurveyStatus' }
+        publish_hash: { type: string }
+      required: [status, publish_hash]
+
+    CloseSurveyResponse:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/SurveyStatus' }
+      required: [status]
+
+    AnswerInput:
+      type: object
+      properties:
+        question_id: { type: string, format: uuid }
+        value: {}
+      required: [question_id, value]
+
+    SubmitResponseRequest:
+      type: object
+      properties:
+        survey_id: { type: string, format: uuid }
+        publish_hash: { type: string }
+        answers:
+          type: array
+          items: { $ref: '#/components/schemas/AnswerInput' }
+      required: [survey_id, publish_hash, answers]
+
+    SubmitResponseResponse:
+      type: object
+      properties:
+        response_id: { type: string, format: uuid }
+        response_hash: { type: string }
+        submitted_at: { type: string, format: date-time }
+      required: [response_id, response_hash, submitted_at]
+
+    PreviewSurveyRequest:
+      type: object
+      properties:
+        answers:
+          type: array
+          items: { $ref: '#/components/schemas/AnswerInput' }
+      required: [answers]
+
+    PreviewSurveyResponse:
+      type: object
+      properties:
+        visible_question_ids:
+          type: array
+          items: { type: string, format: uuid }
+        hidden_question_ids:
+          type: array
+          items: { type: string, format: uuid }
+      required: [visible_question_ids, hidden_question_ids]
+
+    ResultsAggregate:
+      type: object
+      properties:
+        question_id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/QuestionType' }
+        data: {}
+      required: [question_id, type, data]
+
+    ResultsResponse:
+      type: object
+      properties:
+        survey: { $ref: '#/components/schemas/Survey' }
+        publish_hash: { type: string }
+        totals:
+          type: object
+          properties:
+            response_count: { type: integer }
+          required: [response_count]
+        aggregates:
+          type: array
+          items: { $ref: '#/components/schemas/ResultsAggregate' }
+      required: [survey, publish_hash, totals, aggregates]
+
+    ExportResponse:
+      type: object
+      properties:
+        publish_hash: { type: string }
+        next_cursor: { type: string, nullable: true }
+        responses:
+          type: array
+          items:
+            type: object
+            properties:
+              response_id: { type: string, format: uuid }
+              response_hash: { type: string }
+              submitted_at: { type: string, format: date-time }
+              respondent_id: { type: string, format: uuid, nullable: true }
+              answers:
+                type: array
+                items: { $ref: '#/components/schemas/AnswerInput' }
+            required: [response_id, response_hash, submitted_at, answers]
+      required: [publish_hash, responses]

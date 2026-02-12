@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum ThreadStatus {
+  draft
+  published
+  hidden
+  locked
+}
+
+enum PostStatus {
+  visible
+  hidden
+}
+
+enum ReportStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum TargetType {
+  thread
+  post
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  role         UserRole @default(user)
+  isBanned     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions              Session[]
+  boardsAuthoredThreads Thread[] @relation("ThreadAuthor")
+  posts                 Post[]
+  likes                 Like[]
+  favorites             Favorite[]
+  reports               Report[] @relation("ReportReporter")
+  resolvedReports       Report[] @relation("ReportResolvedBy")
+  moderatorAssignments  ModeratorAssignment[]
+  auditLogs             AuditLog[]
+
+  @@index([role])
+}
+
+model Session {
+  id         String   @id
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+
+  userAgent  String?
+  ipHash     String?
+  csrfSecret String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Board {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  threads               Thread[]
+  moderatorAssignments  ModeratorAssignment[]
+  reports               Report[]
+
+  @@index([isActive, sortOrder])
+}
+
+model ModeratorAssignment {
+  id      String @id @default(cuid())
+  boardId String
+  userId  String
+
+  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([boardId, userId])
+  @@index([userId])
+}
+
+model Thread {
+  id        String @id @default(cuid())
+  boardId   String
+  authorId  String
+
+  title     String
+  content   String?
+  status    ThreadStatus @default(draft)
+
+  isPinned   Boolean @default(false)
+  isFeatured Boolean @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author  User  @relation("ThreadAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  posts   Post[]
+  favorites Favorite[]
+
+  @@index([boardId, status, createdAt])
+  @@index([boardId, isPinned, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Post {
+  id       String @id @default(cuid())
+  threadId String
+  authorId String
+
+  content  String
+  status   PostStatus @default(visible)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, status, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Like {
+  id         String    @id @default(cuid())
+  userId     String
+  targetType TargetType
+  targetId   String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+}
+
+model Favorite {
+  id       String @id @default(cuid())
+  userId   String
+  threadId String
+
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId])
+  @@index([threadId])
+}
+
+model Report {
+  id         String     @id @default(cuid())
+  reporterId String
+  boardId    String
+
+  targetType TargetType
+  targetId   String
+
+  reason     String
+  status     ReportStatus @default(pending)
+
+  resolvedById String?
+  resolvedAt   DateTime?
+  note         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter   User   @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  board      Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  resolvedBy User?  @relation("ReportResolvedBy", fields: [resolvedById], references: [id])
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([boardId, status, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([targetType, targetId, createdAt])
+  @@index([createdAt])
+}

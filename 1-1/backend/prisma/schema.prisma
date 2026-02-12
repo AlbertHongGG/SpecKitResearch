@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  member
+  admin
+}
+
+enum ActivityStatus {
+  draft
+  published
+  full
+  closed
+  archived
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  registrations    Registration[]
+  activitiesCreated Activity[]     @relation("ActivityCreatedBy")
+  idempotencyKeys  IdempotencyKey[]
+  auditLogs        AuditLog[]      @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Activity {
+  id             String         @id @default(cuid())
+  title          String
+  description    String
+  date           DateTime
+  location       String
+  deadline       DateTime
+  capacity       Int
+  remainingSlots Int            @map("remaining_slots")
+  status         ActivityStatus
+  createdById    String         @map("created_by_id")
+  createdBy      User           @relation("ActivityCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  registrations Registration[]
+
+  @@index([status])
+  @@map("activities")
+}
+
+model Registration {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  activityId String    @map("activity_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  canceledAt DateTime? @map("canceled_at")
+
+  user     User     @relation(fields: [userId], references: [id])
+  activity Activity @relation(fields: [activityId], references: [id])
+
+  @@unique([userId, activityId])
+  @@index([activityId])
+  @@map("registrations")
+}
+
+model IdempotencyKey {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  action         String
+  key            String
+  requestHash    String?   @map("request_hash")
+  responseStatus Int?      @map("response_status")
+  responseBody   Json?     @map("response_body")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  expiresAt      DateTime? @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, action, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?  @map("actor_user_id")
+  action      String
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  metadata    Json?
+  requestId   String?  @map("request_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([action])
+  @@map("audit_logs")
+}

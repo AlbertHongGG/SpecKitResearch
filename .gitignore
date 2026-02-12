@@ -1,0 +1,68 @@
+# ----------------------------
+# Root monorepo .gitignore
+# Intention: ignore generated artifacts across ALL sub-projects.
+# NOTE: We DO want to commit: .github/, .vscode/, .specify/
+# ----------------------------
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+**/node_modules/
+
+# Build output
+**/dist/
+**/build/
+**/out/
+**/.next/
+**/.nuxt/
+**/.svelte-kit/
+**/.astro/
+**/.vercel/
+**/.netlify/
+
+# Caches
+**/.cache/
+**/.parcel-cache/
+**/.turbo/
+**/.vite/
+**/.swc/
+**/.rollup.cache/
+
+# Coverage / test artifacts
+**/coverage/
+**/.nyc_output/
+**/test-results/
+**/playwright-report/
+
+# TypeScript
+**/*.tsbuildinfo
+
+# Local env files (never commit secrets)
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+!**/.env.template
+
+# Database / local data
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.db-journal
+**/*.sqlite-journal
+
+# Local IDE settings that are usually personal
+# We intentionally do NOT ignore .vscode/ per user request.
+.idea/
+
+# Backup of nested repos' .git directories (created by Copilot)
+.subrepo_git_backup/

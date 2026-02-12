@@ -1,0 +1,297 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "speckit: check prerequisites",
+			"type": "shell",
+			"command": ".specify/scripts/bash/check-prerequisites.sh",
+			"args": [
+				"--json",
+				"--require-tasks",
+				"--include-tasks"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (all)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (backend verbose)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"backend",
+				"run",
+				"test",
+				"--",
+				"--runInBand",
+				"--verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "backend tests -> log",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"cd backend && (npm run test -- --runInBand --verbose > /tmp/backend-test.log 2>&1) || true && echo wrote:/tmp/backend-test.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "backend tests -> workspace log",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"cd backend && (npm run test -- --runInBand --verbose > test-output.log 2>&1) || true && echo wrote:$PWD/test-output.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (backend)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"backend",
+				"run",
+				"test",
+				"--",
+				"--runInBand"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (frontend)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"frontend",
+				"run",
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "frontend tests -> workspace log",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"cd frontend && (npm run test > test-output.log 2>&1) || true && echo wrote:$PWD/test-output.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (frontend, vitest)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"frontend",
+				"run",
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "frontend vitest -> log",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"cd frontend && (npm run test > test-output.log 2>&1) || true && echo wrote:$PWD/test-output.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (frontend) after vitest config",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"frontend",
+				"run",
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (all) after fixes",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "backend: prisma migrate dev",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"backend",
+				"run",
+				"prisma:migrate"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "backend: prisma seed",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"backend",
+				"run",
+				"prisma:seed"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "backend: dev server",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"-w",
+				"backend",
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "quickstart: API validation run",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"set -euo pipefail\nAPI_BASE=\"http://localhost:3001\"\nBUYER_JAR=\"/tmp/qs_buyer.cookies\"\nADMIN_JAR=\"/tmp/qs_admin.cookies\"\nrm -f \"$BUYER_JAR\" \"$ADMIN_JAR\"\n\nWEBHOOK_SECRET=$(grep -E '^PAYMENT_WEBHOOK_SECRET=' backend/.env | cut -d= -f2- | tr -d '\"' | tr -d \"'\" | tr -d '\\r')\n\necho \"[1] Catalog list\"\nproducts_json=$(curl -fsS \"$API_BASE/api/catalog/products\")\nproduct_ids=$(printf \"%s\" \"$products_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.items.slice(0,2).map(x=>x.id).join(\" \"));')\nP1=$(printf \"%s\" \"$product_ids\" | awk '{print $1}')\nP2=$(printf \"%s\" \"$product_ids\" | awk '{print $2}')\n[ -n \"$P1\" ] && [ -n \"$P2\" ]\n\ncategories_json=$(curl -fsS \"$API_BASE/api/catalog/categories\")\nCAT_ID=$(printf \"%s\" \"$categories_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.items[0]?.id ?? \"\");')\n[ -n \"$CAT_ID\" ]\n\necho \"[2] Buyer login (seed)\"\ncurl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" \\\n  -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/auth/login\" \\\n  -d '{\"email\":\"buyer@example.com\",\"password\":\"password123\"}' > /dev/null\n\necho \"[3] Add 2 products to cart\"\ncurl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/cart/items\" -d \"{\\\"productId\\\":\\\"$P1\\\",\\\"quantity\\\":1}\" > /dev/null\ncurl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/cart/items\" -d \"{\\\"productId\\\":\\\"$P2\\\",\\\"quantity\\\":1}\" > /dev/null\n\necho \"[4] Checkout + webhook success + payment result\"\nTX1=\"tx_$(date +%s)_us1\"\ncheckout_json=$(curl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/checkout\" -d \"{\\\"paymentMethod\\\":\\\"mock\\\",\\\"transactionId\\\":\\\"$TX1\\\"}\")\nORDER1=$(printf \"%s\" \"$checkout_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.orderId ?? \"\");')\n[ -n \"$ORDER1\" ]\n\ncurl -fsS -H 'content-type: application/json' -H \"x-webhook-secret: $WEBHOOK_SECRET\" \\\n  -X POST \"$API_BASE/api/payments/webhook\" \\\n  -d \"{\\\"provider\\\":\\\"mock\\\",\\\"eventId\\\":\\\"evt_$(date +%s)_us1\\\",\\\"orderId\\\":\\\"$ORDER1\\\",\\\"transactionId\\\":\\\"$TX1\\\",\\\"status\\\":\\\"succeeded\\\",\\\"paymentMethod\\\":\\\"mock\\\"}\" > /dev/null\n\nresult_json=$(curl -fsS \"$API_BASE/api/payments/result?orderId=$ORDER1\")\nPAYMENT_STATUS=$(printf \"%s\" \"$result_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.paymentStatus ?? \"\");')\n[ \"$PAYMENT_STATUS\" = \"succeeded\" ]\n\necho \"[5] US2 seller apply + admin approve + me roles\"\napply_json=$(curl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/seller/apply\" -d '{\"shopName\":\"Buyer Shop\"}')\nAPP_ID=$(printf \"%s\" \"$apply_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.application?.id ?? \"\");')\n[ -n \"$APP_ID\" ]\n\ncurl -fsS -c \"$ADMIN_JAR\" -b \"$ADMIN_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/auth/login\" \\\n  -d '{\"email\":\"admin@example.com\",\"password\":\"password123\"}' > /dev/null\n\ncurl -fsS -c \"$ADMIN_JAR\" -b \"$ADMIN_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/admin/seller-applications/$APP_ID/decision\" \\\n  -d '{\"decision\":\"approved\"}' > /dev/null\n\nme_json=$(curl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" \"$API_BASE/api/auth/me\")\nHAS_SELLER=$(printf \"%s\" \"$me_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log((d.user?.roles ?? []).includes(\"seller\") ? \"yes\" : \"no\");')\n[ \"$HAS_SELLER\" = \"yes\" ]\n\necho \"[6] Seller creates + activates product\"\ncreate_prod_json=$(curl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/seller/products\" \\\n  -d \"{\\\"title\\\":\\\"QS Product\\\",\\\"description\\\":\\\"desc\\\",\\\"price\\\":1234,\\\"stock\\\":5,\\\"categoryId\\\":\\\"$CAT_ID\\\"}\")\nNEW_PROD_ID=$(printf \"%s\" \"$create_prod_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.product?.id ?? \"\");')\n[ -n \"$NEW_PROD_ID\" ]\n\ncurl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X PATCH \"$API_BASE/api/seller/products/$NEW_PROD_ID\" \\\n  -d '{\"status\":\"active\"}' > /dev/null\n\n# verify visible in catalog\ncurl -fsS \"$API_BASE/api/catalog/products?q=QS%20Product\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); if (!d.items.some(p=>p.title===\"QS Product\")) process.exit(1);' \n\necho \"[7] US3 pre-payment cancel\"\n# ensure cart has something and create unpaid order\ncurl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/cart/items\" -d \"{\\\"productId\\\":\\\"$NEW_PROD_ID\\\",\\\"quantity\\\":1}\" > /dev/null\nTX2=\"tx_$(date +%s)_cancel\"\ncheckout2_json=$(curl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -H 'content-type: application/json' \\\n  -X POST \"$API_BASE/api/checkout\" -d \"{\\\"paymentMethod\\\":\\\"mock\\\",\\\"transactionId\\\":\\\"$TX2\\\"}\")\nORDER2=$(printf \"%s\" \"$checkout2_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.orderId ?? \"\");')\n[ -n \"$ORDER2\" ]\n\ncancel_json=$(curl -fsS -c \"$BUYER_JAR\" -b \"$BUYER_JAR\" -X POST \"$API_BASE/api/orders/$ORDER2/cancel\")\nCANCEL_STATUS=$(printf \"%s\" \"$cancel_json\" | node -e 'const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(0,\"utf8\")); console.log(d.order?.status ?? d.status ?? \"\");')\n[ -n \"$CANCEL_STATUS\" ]\n\necho \"OK quickstart API validation complete\""
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "quickstart: run api validation script",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"scripts/quickstart_api_validate.sh"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "quickstart: api validation -> log",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"bash scripts/quickstart_api_validate.sh > quickstart-validate.log 2>&1 || true; echo wrote:$PWD/quickstart-validate.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "quickstart: api validation debug",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"bash -x scripts/quickstart_api_validate.sh > quickstart-validate-debug.log 2>&1 || true; echo wrote:$PWD/quickstart-validate-debug.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "quickstart: rerun api validation script",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"scripts/quickstart_api_validate.sh"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "quickstart: api validation with refund flow",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"scripts/quickstart_api_validate.sh"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (root verify)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "npm: test (root) -> log",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"npm test > root-test-output.log 2>&1 || true; echo wrote:$PWD/root-test-output.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

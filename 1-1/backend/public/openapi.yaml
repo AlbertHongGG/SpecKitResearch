@@ -1,0 +1,552 @@
+openapi: 3.0.3
+info:
+  title: Activity Management Platform API
+  version: 0.1.0
+  description: |
+    社團活動管理平台 REST API（JSON）。
+    
+    - Auth: JWT Bearer
+    - Idempotency: 對會寫入的操作（報名/取消/狀態變更）建議使用 `Idempotency-Key`。
+servers:
+  - url: http://localhost:3000
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 用於冪等重試（建議 UUID）。同一使用者同一動作相同 key 必須回傳一致結果。
+      schema:
+        type: string
+        maxLength: 128
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: AUTH_REQUIRED
+        message:
+          type: string
+          example: 請先登入
+        details:
+          type: object
+          additionalProperties: true
+
+    Role:
+      type: string
+      enum: [member, admin]
+
+    UserPublic:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+
+    ActivityStatus:
+      type: string
+      enum: [draft, published, full, closed, archived]
+
+    ActivitySummary:
+      type: object
+      required: [id, title, date, location, capacity, remaining_slots, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        date: { type: string, format: date-time }
+        location: { type: string }
+        capacity: { type: integer, minimum: 1 }
+        remaining_slots: { type: integer, minimum: 0 }
+        status: { $ref: '#/components/schemas/ActivityStatus' }
+        viewer:
+          type: object
+          required: [is_registered, can_register]
+          properties:
+            is_registered: { type: boolean }
+            can_register: { type: boolean }
+
+    ActivityDetail:
+      allOf:
+        - $ref: '#/components/schemas/ActivitySummary'
+        - type: object
+          required: [description, deadline]
+          properties:
+            description: { type: string }
+            deadline: { type: string, format: date-time }
+            created_by: { type: string }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+            viewer:
+              type: object
+              required: [is_registered, can_register, can_cancel]
+              properties:
+                is_registered: { type: boolean }
+                can_register: { type: boolean }
+                can_cancel: { type: boolean }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    LoginResponse:
+      type: object
+      required: [access_token, user]
+      properties:
+        access_token: { type: string }
+        user: { $ref: '#/components/schemas/UserPublic' }
+
+    RegisterResponse:
+      type: object
+      required: [registration_state, activity]
+      properties:
+        registration_state:
+          type: string
+          enum: [registered, already_registered]
+        activity:
+          $ref: '#/components/schemas/ActivityDetail'
+
+    CancelResponse:
+      type: object
+      required: [registration_state, activity]
+      properties:
+        registration_state:
+          type: string
+          enum: [canceled, already_canceled]
+        activity:
+          $ref: '#/components/schemas/ActivityDetail'
+
+    MyActivityItem:
+      type: object
+      required: [activity, registration_status, activity_time_status]
+      properties:
+        activity: { $ref: '#/components/schemas/ActivitySummary' }
+        registration_status:
+          type: string
+          enum: [active, canceled]
+        activity_time_status:
+          type: string
+          enum: [upcoming, ended]
+
+    ActivityUpsertRequest:
+      type: object
+      required: [title, description, date, location, deadline, capacity, status]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        date: { type: string, format: date-time }
+        location: { type: string }
+        deadline: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/ActivityStatus' }
+
+    ActivityUpsertResponse:
+      type: object
+      required: [activity]
+      properties:
+        activity: { $ref: '#/components/schemas/ActivityDetail' }
+
+    ActivityStatusChangeRequest:
+      type: object
+      required: [new_status]
+      properties:
+        new_status:
+          $ref: '#/components/schemas/ActivityStatus'
+
+    RegistrationRosterItem:
+      type: object
+      required: [name, email, registered_at]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        registered_at: { type: string, format: date-time }
+
+paths:
+  /auth/login:
+    post:
+      security: []
+      summary: 使用者登入
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      summary: 使用者登出
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /me:
+    get:
+      summary: 取得目前登入使用者
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/UserPublic' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /activities:
+    get:
+      security: []
+      summary: 公開活動列表（published/full）
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [published, full]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ActivitySummary' }
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /activities/{activityId}:
+    get:
+      security: []
+      summary: 取得活動詳情
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activity: { $ref: '#/components/schemas/ActivityDetail' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /activities/{activityId}/registrations:
+    post:
+      summary: 報名活動（Member）
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK（含 already_registered）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict（例如額滿）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Unprocessable（例如已截止/狀態不允許）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    delete:
+      summary: 取消報名（Member）
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK（含 already_canceled）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CancelResponse' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Unprocessable（例如已截止/已結束不允許取消）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /me/activities:
+    get:
+      summary: 我的活動（Member）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MyActivityItem' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/activities:
+    post:
+      summary: 建立活動（Admin）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityUpsertRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityUpsertResponse' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/activities/{activityId}:
+    patch:
+      summary: 更新活動（Admin）
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityUpsertRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityUpsertResponse' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/activities/{activityId}/status:
+    post:
+      summary: 變更活動狀態（Admin）
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityStatusChangeRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityUpsertResponse' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/activities/{activityId}/registrations:
+    get:
+      summary: 取得活動報名名單（Admin）
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RegistrationRosterItem' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/activities/{activityId}/registrations/export:
+    get:
+      summary: 匯出報名名單 CSV（Admin）
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }

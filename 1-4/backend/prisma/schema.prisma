@@ -1,0 +1,151 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Performance / query tuning notes (Polish T106)
+//
+// - Ticket list endpoints sort by updatedAt DESC and apply a bounded `take` (default 50).
+//   For workbench/list performance, the composite indexes below are designed to match:
+//     - Agent workbench: (assigneeId, status, updatedAt)
+//     - Customer list:   (customerId, status, updatedAt)
+// - Ticket timeline reads are ordered by createdAt, backed by:
+//     - TicketMessage(ticketId, createdAt)
+//     - AuditLog(entityType, entityId, createdAt)
+// - If dataset size grows significantly, consider cursor-based pagination (updatedAt + id)
+//   and/or moving from SQLite to a server DB (e.g. Postgres) for better write concurrency.
+
+enum UserRole {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+
+enum TicketCategory {
+  ACCOUNT
+  BILLING
+  TECHNICAL
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum AuditEntityType {
+  TICKET
+  USER
+  AUTH_SESSION
+}
+
+enum AuditAction {
+  TICKET_CREATED
+  MESSAGE_CREATED
+  STATUS_CHANGED
+  ASSIGNEE_CHANGED
+  USER_DISABLED
+  USER_ROLE_CHANGED
+  SESSION_REVOKED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean       @default(true)
+  tokenVersion Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  ticketsAsCustomer Ticket[]        @relation("TicketCustomer")
+  ticketsAsAssignee Ticket[]        @relation("TicketAssignee")
+  messages          TicketMessage[]
+  auditLogs         AuditLog[]
+  sessions          AuthSession[]
+}
+
+model AuthSession {
+  id               String   @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  userAgent        String?
+  ip               String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Ticket {
+  id         String         @id @default(uuid())
+  title      String
+  category   TicketCategory
+  status     TicketStatus
+  customerId String
+  assigneeId String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  closedAt   DateTime?
+  version    Int            @default(0)
+
+  customer User  @relation("TicketCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  assignee User? @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  messages TicketMessage[]
+
+  @@index([customerId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([updatedAt])
+  @@index([assigneeId, status, updatedAt])
+  @@index([customerId, status, updatedAt])
+}
+
+model TicketMessage {
+  id         String   @id @default(uuid())
+  ticketId   String
+  authorId   String
+  authorRole UserRole
+  content    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+}
+
+model AuditLog {
+  id           String          @id @default(uuid())
+  entityType   AuditEntityType
+  entityId     String
+  action       AuditAction
+  actorId      String
+  metadataJson String
+  createdAt    DateTime        @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}

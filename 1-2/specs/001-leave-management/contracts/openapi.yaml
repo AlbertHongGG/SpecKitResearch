@@ -1,0 +1,950 @@
+openapi: 3.0.3
+info:
+  title: Leave Management System API
+  version: 1.0.0
+  description: |
+    公司內部請假系統 REST API（MVP）。
+
+    認證：JWT（HttpOnly Cookie）。
+    錯誤碼：401 未登入、403 無權限、404 不存在、409 衝突（狀態競態/日期重疊/冪等衝突）、422 驗證失敗。
+servers:
+  - url: http://localhost:3000
+
+tags:
+  - name: Auth
+  - name: LeaveTypes
+  - name: LeaveBalances
+  - name: LeaveRequests
+  - name: Manager
+  - name: Calendar
+  - name: Attachments
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            Set-Cookie:
+              description: Access/refresh cookies will be set.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Uses refresh token cookie; rotates refresh session.
+      responses:
+        '200':
+          description: Refreshed
+          headers:
+            Set-Cookie:
+              description: New access cookie (and possibly rotated refresh cookie).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRefreshResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: Issue CSRF token
+      description: |
+        Issues a CSRF token for cookie-based auth. The server may set an XSRF-TOKEN cookie.
+      responses:
+        '200':
+          description: CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfTokenResponse'
+
+  /leave-types:
+    get:
+      tags: [LeaveTypes]
+      summary: List active leave types
+      responses:
+        '200':
+          description: Leave types
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeaveType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me/leave-balances:
+    get:
+      tags: [LeaveBalances]
+      summary: Get my leave balances
+      parameters:
+        - in: query
+          name: year
+          required: true
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Balances
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeaveBalance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me/leave-requests:
+    get:
+      tags: [LeaveRequests]
+      summary: List my leave requests
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/LeaveRequestStatus'
+        - in: query
+          name: leaveTypeId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: start
+          description: Filter by start date (inclusive)
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end
+          description: Filter by end date (inclusive)
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [startDateDesc, createdAtDesc]
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeaveRequestSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [LeaveRequests]
+      summary: Create a leave request draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestDraftUpsert'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /me/leave-requests/{id}:
+    get:
+      tags: [LeaveRequests]
+      summary: Get my leave request detail
+      parameters:
+        - $ref: '#/components/parameters/LeaveRequestId'
+      responses:
+        '200':
+          description: Detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [LeaveRequests]
+      summary: Update my draft leave request
+      description: Only allowed when status is draft.
+      parameters:
+        - $ref: '#/components/parameters/LeaveRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestDraftUpsert'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /me/leave-requests/{id}/submit:
+    post:
+      tags: [LeaveRequests]
+      summary: Submit my leave request
+      parameters:
+        - $ref: '#/components/parameters/LeaveRequestId'
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /me/leave-requests/{id}/cancel:
+    post:
+      tags: [LeaveRequests]
+      summary: Cancel (withdraw) my submitted leave request
+      parameters:
+        - $ref: '#/components/parameters/LeaveRequestId'
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /manager/pending-leave-requests:
+    get:
+      tags: [Manager]
+      summary: List pending leave requests for approval
+      parameters:
+        - in: query
+          name: start
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: leaveTypeId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: employeeId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pending list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ManagerPendingLeaveRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /manager/leave-requests/{id}/approve:
+    post:
+      tags: [Manager]
+      summary: Approve a submitted leave request
+      parameters:
+        - $ref: '#/components/parameters/LeaveRequestId'
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /manager/leave-requests/{id}/reject:
+    post:
+      tags: [Manager]
+      summary: Reject a submitted leave request
+      parameters:
+        - $ref: '#/components/parameters/LeaveRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectRequest'
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequestDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /manager/calendar:
+    get:
+      tags: [Calendar]
+      summary: Get calendar events for manager scope
+      parameters:
+        - in: query
+          name: view
+          required: true
+          schema:
+            type: string
+            enum: [month, week]
+        - in: query
+          name: start
+          required: true
+          description: Visible range start (inclusive)
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end
+          required: true
+          description: Visible range end (inclusive)
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: includeSubmitted
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Calendar events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CalendarEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /attachments:
+    post:
+      tags: [Attachments]
+      summary: Upload an attachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentUploadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /attachments/{id}:
+    get:
+      tags: [Attachments]
+      summary: Get attachment metadata
+      parameters:
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '200':
+          description: Metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /attachments/{id}/download:
+    get:
+      tags: [Attachments]
+      summary: Download attachment
+      parameters:
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '200':
+          description: Binary download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    LeaveRequestId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AttachmentId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              value:
+                code: UNAUTHORIZED
+                message: Not logged in
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                code: FORBIDDEN
+                message: Not allowed
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                code: NOT_FOUND
+                message: Resource not found
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            overlap:
+              value:
+                code: DATE_OVERLAP
+                message: Date range overlaps with an existing leave request
+            invalidTransition:
+              value:
+                code: INVALID_STATE_TRANSITION
+                message: Leave request status has changed
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+  schemas:
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+
+    AuthLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    UserPublic:
+      type: object
+      required: [id, name, email, role, department]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [employee, manager]
+        department:
+          $ref: '#/components/schemas/Department'
+
+    Department:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    AuthLoginResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserPublic'
+
+    AuthRefreshResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    MeResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserPublic'
+
+    CsrfTokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    LeaveType:
+      type: object
+      required: [id, name, annualQuota, carryOver, requireAttachment, isActive]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Annual
+        annualQuota:
+          type: number
+          example: 10
+        carryOver:
+          type: boolean
+        requireAttachment:
+          type: boolean
+        isActive:
+          type: boolean
+
+    LeaveBalance:
+      type: object
+      required: [leaveTypeId, year, quota, used, reserved, available]
+      properties:
+        leaveTypeId:
+          type: string
+          format: uuid
+        year:
+          type: integer
+        quota:
+          type: number
+        used:
+          type: number
+        reserved:
+          type: number
+        available:
+          type: number
+
+    LeaveRequestStatus:
+      type: string
+      enum: [draft, submitted, approved, rejected, cancelled]
+
+    LeaveRequestSummary:
+      type: object
+      required: [id, leaveTypeId, startDate, endDate, days, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        leaveTypeId:
+          type: string
+          format: uuid
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        days:
+          type: number
+        status:
+          $ref: '#/components/schemas/LeaveRequestStatus'
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        decidedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    LeaveRequestDraftUpsert:
+      type: object
+      required: [leaveTypeId, startDate, endDate]
+      properties:
+        leaveTypeId:
+          type: string
+          format: uuid
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+          nullable: true
+        attachmentId:
+          type: string
+          format: uuid
+          nullable: true
+
+    LeaveRequestDetail:
+      type: object
+      required: [id, employee, leaveType, startDate, endDate, days, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee:
+          type: object
+          required: [id, name, department]
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            department:
+              $ref: '#/components/schemas/Department'
+        leaveType:
+          $ref: '#/components/schemas/LeaveType'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        days:
+          type: number
+        reason:
+          type: string
+          nullable: true
+        attachment:
+          $ref: '#/components/schemas/Attachment'
+        status:
+          $ref: '#/components/schemas/LeaveRequestStatus'
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        decidedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approver:
+          $ref: '#/components/schemas/UserPublic'
+        rejectionReason:
+          type: string
+          nullable: true
+
+    RejectRequest:
+      type: object
+      required: [rejectionReason]
+      properties:
+        rejectionReason:
+          type: string
+          minLength: 1
+
+    ManagerPendingLeaveRequest:
+      type: object
+      required: [id, employee, leaveType, startDate, endDate, days, submittedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee:
+          type: object
+          required: [id, name, department]
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            department:
+              $ref: '#/components/schemas/Department'
+        leaveType:
+          $ref: '#/components/schemas/LeaveType'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        days:
+          type: number
+        submittedAt:
+          type: string
+          format: date-time
+
+    CalendarEvent:
+      type: object
+      required: [id, title, start, end, status, leaveRequestId]
+      properties:
+        id:
+          type: string
+          description: Calendar event id (can equal leaveRequestId)
+        leaveRequestId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          description: Display text (avoid sensitive content)
+        start:
+          type: string
+          format: date
+          description: Inclusive start date
+        end:
+          type: string
+          format: date
+          description: Exclusive end date (endDate + 1 day)
+        allDay:
+          type: boolean
+          default: true
+        status:
+          type: string
+          enum: [submitted, approved]
+        employee:
+          type: object
+          required: [name, departmentName]
+          properties:
+            name:
+              type: string
+            departmentName:
+              type: string
+
+    Attachment:
+      type: object
+      required: [id, originalFilename, mimeType, sizeBytes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalFilename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    AttachmentUploadResponse:
+      type: object
+      required: [attachmentId]
+      properties:
+        attachmentId:
+          type: string
+          format: uuid

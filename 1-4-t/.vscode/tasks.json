@@ -1,0 +1,83 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "sanity: echo",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && echo TASK_OK",
+			"isBackground": false
+		},
+		{
+			"label": "test:backend",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix backend test",
+			"isBackground": false
+		},
+		{
+			"label": "test:backend:log",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix backend test -- --runInBand --verbose 2>&1 | tee /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/.tmp-backend-test.log",
+			"isBackground": false
+		},
+		{
+			"label": "test:backend",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix backend test -- --runInBand",
+			"isBackground": false
+		},
+		{
+			"label": "test:backend:log",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix backend test -- --runInBand --verbose 2>&1 | tee /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/.tmp-backend-test.log",
+			"isBackground": false
+		},
+		{
+			"label": "test:backend:log",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix backend test -- --runInBand --verbose 2>&1 | tee /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/.tmp-backend-test.log",
+			"isBackground": false
+		},
+		{
+			"label": "test:frontend",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix frontend test",
+			"isBackground": false
+		},
+		{
+			"label": "test:frontend",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix frontend test",
+			"isBackground": false
+		},
+		{
+			"label": "test:frontend:ci",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/frontend && npx vitest run --watch=false",
+			"isBackground": false
+		},
+		{
+			"label": "quickstart:backend:migrate",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/backend && DATABASE_URL=\"file:./dev.db\" npm run prisma:migrate",
+			"isBackground": false
+		},
+		{
+			"label": "quickstart:backend:seed",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/backend && DATABASE_URL=\"file:./dev.db\" npm run db:seed",
+			"isBackground": false
+		},
+		{
+			"label": "test:frontend:script",
+			"type": "shell",
+			"command": "cd /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t && npm --prefix frontend test",
+			"isBackground": false
+		},
+		{
+			"label": "cleanup:rm-temp-log",
+			"type": "shell",
+			"command": "rm -f /Users/selab/Desktop/Hong/SpecKitReserch/1-4-t/.tmp-backend-test.log",
+			"isBackground": false
+		}
+	]
+}
