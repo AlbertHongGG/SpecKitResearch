@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -29,6 +30,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider(props: { children: ReactNode }) {
+  const didBootstrap = useRef(false)
+
   const [state, setState] = useState<AuthState>(() => {
     const stored = authApi.getStoredAuth()
     if (!stored) {
@@ -48,6 +51,11 @@ export function AuthProvider(props: { children: ReactNode }) {
   })
 
   useEffect(() => {
+    if (didBootstrap.current) return
+    didBootstrap.current = true
+
+    if (state.status !== 'booting') return
+
     const refreshToken = state.refreshToken
     if (!refreshToken) return
 
@@ -84,7 +92,7 @@ export function AuthProvider(props: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [state.refreshToken])
+  }, [state.refreshToken, state.status])
 
   const value = useMemo<AuthContextValue>(() => {
     return {

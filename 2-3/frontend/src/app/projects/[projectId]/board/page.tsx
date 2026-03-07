@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { AppShell } from '../../../../components/AppShell';
@@ -14,18 +14,19 @@ import { useProjectEvents } from '../../../../features/realtime/useProjectEvents
 import { ArchivedBadge } from '../../../../components/ArchivedBadge';
 import { getReadonlyReason } from '../../../../lib/readonly/useReadonlyReason';
 
-export default function ProjectBoardPage({ params }: { params: { projectId: string } }) {
+export default function ProjectBoardPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = use(params);
     const { data: me } = useMe();
     const toast = useToast();
     const queryClient = useQueryClient();
 
     const snapshotQuery = useQuery({
-        queryKey: ['snapshot', params.projectId],
-        queryFn: () => api.snapshot(params.projectId),
+        queryKey: ['snapshot', projectId],
+        queryFn: () => api.snapshot(projectId),
     });
 
     useProjectEvents({
-        projectId: params.projectId,
+        projectId,
         enabled: !!snapshotQuery.data,
         after: snapshotQuery.data?.latestEventId ?? null,
     });
@@ -70,7 +71,7 @@ export default function ProjectBoardPage({ params }: { params: { projectId: stri
             return api.createList(derivedActiveBoardId, { title: newListTitle.trim() });
         },
         onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: ['snapshot', params.projectId] });
+            await queryClient.invalidateQueries({ queryKey: ['snapshot', projectId] });
             toast.push('已建立欄位', 'success');
             setNewListTitle('');
         },
@@ -96,7 +97,7 @@ export default function ProjectBoardPage({ params }: { params: { projectId: stri
                         </div>
 
                         <BoardHeader
-                            projectId={params.projectId}
+                            projectId={projectId}
                             boards={snapshotQuery.data.boards}
                             activeBoardId={derivedActiveBoardId}
                             onSelectBoardId={(id) => setActiveBoardId(id)}
@@ -128,7 +129,7 @@ export default function ProjectBoardPage({ params }: { params: { projectId: stri
                                 ) : null}
 
                                 <BoardView
-                                    projectId={params.projectId}
+                                    projectId={projectId}
                                     lists={activeLists}
                                     tasks={activeTasks}
                                     canWrite={canWrite}

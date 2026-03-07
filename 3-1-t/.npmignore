@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build artifacts
+dist/
+build/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Tooling / logs
+*.log*
+.vscode/
+.idea/
+
+# Source control / CI
+.git/
+.github/
+
+# OS
+.DS_Store
+Thumbs.db

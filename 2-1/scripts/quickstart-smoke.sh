@@ -92,7 +92,7 @@ curl -s "$BASE/api/courses/seed-course-001" >/dev/null
 echo "[4/6] Student: login + my-courses"
 login_code=$(curl -s -o /dev/null -w "%{http_code}" -c "$student_cj" -b "$student_cj" \
   -H 'Content-Type: application/json' \
-  --data '{"email":"student@example.com","password":"password123"}' \
+  --data '{"email":"student@example.com","password":"password1234"}' \
   "$BASE/api/auth/login")
 [[ "$login_code" == "200" || "$login_code" == "201" ]] || (echo "student login failed: $login_code" && exit 1)
 
@@ -102,7 +102,7 @@ my_code=$(curl -s -o /dev/null -w "%{http_code}" -c "$student_cj" -b "$student_c
 echo "[5/6] Instructor: create draft -> add section/lesson -> submit"
 login_i_code=$(curl -s -o /dev/null -w "%{http_code}" -c "$instructor_cj" -b "$instructor_cj" \
   -H 'Content-Type: application/json' \
-  --data '{"email":"instructor@example.com","password":"password123"}' \
+  --data '{"email":"instructor@example.com","password":"password1234"}' \
   "$BASE/api/auth/login")
 [[ "$login_i_code" == "200" || "$login_i_code" == "201" ]] || (echo "instructor login failed: $login_i_code" && exit 1)
 
@@ -130,7 +130,7 @@ submit_code=$(curl -s -o /dev/null -w "%{http_code}" -c "$instructor_cj" -b "$in
 echo "[6/6] Admin: approve submitted course + student purchase (201 then 409)"
 login_a_code=$(curl -s -o /dev/null -w "%{http_code}" -c "$admin_cj" -b "$admin_cj" \
   -H 'Content-Type: application/json' \
-  --data '{"email":"admin@example.com","password":"password123"}' \
+  --data '{"email":"admin@example.com","password":"password1234"}' \
   "$BASE/api/auth/login")
 [[ "$login_a_code" == "200" || "$login_a_code" == "201" ]] || (echo "admin login failed: $login_a_code" && exit 1)
 

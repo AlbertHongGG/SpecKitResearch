@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { RequireAuthGuard } from '../auth/require-auth.guard';
 import { RequireOwnerGuard } from '../auth/require-owner.guard';
@@ -6,7 +6,7 @@ import { ExportService } from './export.service';
 
 @Controller('surveys/:id/export')
 export class ExportController {
-  constructor(private readonly exporter: ExportService) {}
+  constructor(@Inject(ExportService) private readonly exporter: ExportService) {}
 
   @Get()
   @UseGuards(RequireAuthGuard, RequireOwnerGuard)

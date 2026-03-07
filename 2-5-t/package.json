@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4000",
+    "dev:backend": "next dev -p 4000",
+    "dev:frontend": "FRONTEND_ONLY=1 BACKEND_ORIGIN=http://localhost:4000 next dev -p 5174",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

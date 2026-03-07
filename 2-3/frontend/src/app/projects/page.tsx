@@ -1,18 +1,31 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 
 import { AppShell } from '../../components/AppShell';
 import { AsyncState } from '../../components/AsyncState';
+import { useMe } from '../../features/auth/useMe';
 import { api } from '../../lib/api/client';
 import { CreateProjectModal } from '../../features/projects/CreateProjectModal';
 import { InvitationsPanel } from '../../features/projects/InvitationsPanel';
 
 export default function ProjectsPage() {
+    const router = useRouter();
+    const { data: me, isLoading: isMeLoading } = useMe();
+
+    useEffect(() => {
+        if (!isMeLoading && !me) {
+            router.replace('/login?returnTo=%2Fprojects');
+        }
+    }, [isMeLoading, me, router]);
+
     const query = useQuery({
         queryKey: ['myProjects'],
         queryFn: () => api.myProjects(),
+        enabled: !!me,
     });
 
     return (
@@ -27,7 +40,7 @@ export default function ProjectsPage() {
 
             <div className="mt-6">
                 <AsyncState
-                    isLoading={query.isLoading}
+                    isLoading={isMeLoading || query.isLoading}
                     error={query.error}
                     empty={query.data ? query.data.projects.length === 0 : false}
                     emptyLabel="尚無專案。你可以先建立一個。"

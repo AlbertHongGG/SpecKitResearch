@@ -17,7 +17,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (Array.isArray(payload)) return payload.map((v) => String(v)).join('; ');
     if (payload && typeof payload === 'object') {
       const maybeMessage = (payload as { message?: unknown }).message;
-      if (Array.isArray(maybeMessage)) return maybeMessage.map((v) => String(v)).join('; ');
+      if (Array.isArray(maybeMessage))
+        return maybeMessage.map((v) => String(v)).join('; ');
       if (typeof maybeMessage === 'string') return maybeMessage;
     }
     return fallback;

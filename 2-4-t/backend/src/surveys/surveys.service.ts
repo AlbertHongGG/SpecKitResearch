@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../shared/db/prisma.service';
 import type { CreateSurveyRequest, SurveyDetail, SurveySummary, UpdateSurveyRequest } from '@app/contracts';
 import { toSurveyDetail, toSurveySummary } from './survey-mappers';
@@ -8,9 +8,9 @@ import { SchemaLockService } from './schema-lock.service';
 @Injectable()
 export class SurveysService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly writer: SurveyWriteService,
-    private readonly schemaLock: SchemaLockService
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(SurveyWriteService) private readonly writer: SurveyWriteService,
+    @Inject(SchemaLockService) private readonly schemaLock: SchemaLockService
   ) {}
 
   async listForOwner(ownerUserId: string): Promise<SurveySummary[]> {

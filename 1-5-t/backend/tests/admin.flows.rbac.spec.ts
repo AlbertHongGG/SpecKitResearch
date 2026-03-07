@@ -23,7 +23,7 @@ describe('US3 admin flows RBAC', () => {
     if (cleanupDb) await cleanupDb();
   });
 
-  it('GET/POST/PUT/deactivate require Admin (401 unauth, 403 non-admin)', async () => {
+  it('GET/POST/PUT/deactivate/activate require Admin (401 unauth, 403 non-admin)', async () => {
     const admin = await seedUser({ email: 'admin-t134@example.com', password: 'pw', role: 'Admin' });
     const user = await seedUser({ email: 'user-t134@example.com', password: 'pw', role: 'User' });
     const reviewer = await seedUser({ email: 'rev-t134@example.com', password: 'pw', role: 'Reviewer' });
@@ -115,9 +115,26 @@ describe('US3 admin flows RBAC', () => {
         await userClient.request({ method: 'POST', url: `/api/admin/flows/${templateId}/deactivate` })
       ).statusCode,
     ).toBe(403);
+    expect((await unauth.request({ method: 'POST', url: `/api/admin/flows/${templateId}/activate` })).statusCode).toBe(
+      401,
+    );
+    expect((await userClient.request({ method: 'POST', url: `/api/admin/flows/${templateId}/activate` })).statusCode).toBe(
+      403,
+    );
 
     const deactRes = await adminClient.request({ method: 'POST', url: `/api/admin/flows/${templateId}/deactivate` });
     expect(deactRes.statusCode).toBe(200);
     expect(deactRes.json()).toEqual({ ok: true });
+
+    const activateRes = await adminClient.request({ method: 'POST', url: `/api/admin/flows/${templateId}/activate` });
+    expect(activateRes.statusCode).toBe(200);
+    expect(activateRes.json()).toEqual({ ok: true });
+
+    const verifyRes = await adminClient.request({ method: 'GET', url: '/api/admin/flows' });
+    expect(verifyRes.statusCode).toBe(200);
+    const templates = (verifyRes.json() as any).templates as Array<any>;
+    const template = templates.find((t) => t.id === templateId);
+    expect(template).toBeTruthy();
+    expect(template.isActive).toBe(true);
   });
 });

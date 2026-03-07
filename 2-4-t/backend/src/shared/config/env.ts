@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const EnvSchema = z.object({
   DATABASE_URL: z.string().default('file:./dev.db'),
+  PORT: z.coerce.number().int().positive().default(4000),
   SESSION_COOKIE_NAME: z.string().default('sid'),
   SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(1209600),
   COOKIE_SECURE: z.coerce.boolean().default(false),

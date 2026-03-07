@@ -5,6 +5,7 @@ import { attachRequestId, getOrCreateRequestId } from "../observability/requestI
 import { createLogger, type Logger } from "../observability/logger";
 import { requireCsrf } from "@/src/infra/auth/csrf";
 import { requireRateLimit } from "@/src/lib/http/rateLimit";
+import { getAllowedOrigins } from "@/src/lib/env";
 
 export type RouteCtx<TParams extends Record<string, string> = Record<string, string>> = {
   params: TParams;
@@ -23,6 +24,19 @@ type RouteOptions = {
 
 function isUnsafeMethod(method: string) {
   return !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
+}
+
+function attachCorsHeaders(req: NextRequest, res: NextResponse) {
+  const requestOrigin = req.headers.get("origin");
+  if (!requestOrigin) return res;
+
+  const allowedOrigins = getAllowedOrigins();
+  if (!allowedOrigins.includes(requestOrigin)) return res;
+
+  res.headers.set("Access-Control-Allow-Origin", requestOrigin);
+  res.headers.set("Access-Control-Allow-Credentials", "true");
+  res.headers.set("Vary", "Origin");
+  return res;
 }
 
 export function route<TParams extends Record<string, string> = Record<string, string>>(
@@ -44,7 +58,7 @@ export function route<TParams extends Record<string, string> = Record<string, st
 
       const params = await Promise.resolve(ctx.params);
       const res = await handler(req, { params, requestId, logger });
-      return attachRequestId(res, requestId);
+      return attachCorsHeaders(req, attachRequestId(res, requestId));
     } catch (err) {
       const serializedError =
         err instanceof Error
@@ -58,7 +72,7 @@ export function route<TParams extends Record<string, string> = Record<string, st
       });
 
       const res = toErrorResponse(err, requestId);
-      return attachRequestId(res, requestId);
+      return attachCorsHeaders(req, attachRequestId(res, requestId));
     }
   };
 }

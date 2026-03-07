@@ -56,11 +56,15 @@ export function toLeaveRequestDetail(params: {
 export function toLeaveRequestSummary(request: LeaveRequest) {
     return {
         id: request.id,
-        leaveTypeId: request.leaveTypeId,
+        leaveType: {
+            id: (request as any).leaveType?.id ?? request.leaveTypeId,
+            name: (request as any).leaveType?.name ?? '',
+        },
         startDate: formatDateOnly(request.startDate),
         endDate: formatDateOnly(request.endDate),
         days: request.days,
         status: request.status,
+        createdAt: request.createdAt.toISOString(),
         submittedAt: request.submittedAt?.toISOString() ?? null,
         decidedAt: request.decidedAt?.toISOString() ?? null,
     };

@@ -6,7 +6,7 @@ function uniq(prefix: string) {
 
 test("US3 report: idempotent reporting", async ({ page }) => {
   const email = `${uniq("u")}@example.com`;
-  const password = "password-1234";
+  const password = "password1234";
 
   // Register (auto login)
   await page.goto("/register?returnTo=/");

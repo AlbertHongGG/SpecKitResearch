@@ -1,7 +1,33 @@
+import fs from "node:fs";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+function loadEnvFile() {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (!fs.existsSync(envPath)) return;
+
+  const content = fs.readFileSync(envPath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+
+    const key = trimmed.slice(0, eq).trim();
+    const rawValue = trimmed.slice(eq + 1).trim();
+    const value = rawValue.replace(/^"(.*)"$/, "$1");
+
+    if (!(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvFile();
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -22,7 +48,7 @@ async function main() {
     create: {
       email: adminEmail,
       role: "admin",
-      passwordHash: await hashPassword("password123"),
+      passwordHash: await hashPassword("password1234"),
     },
   });
 
@@ -32,7 +58,7 @@ async function main() {
     create: {
       email: userEmail,
       role: "user",
-      passwordHash: await hashPassword("password123"),
+      passwordHash: await hashPassword("password1234"),
     },
   });
 
@@ -42,7 +68,7 @@ async function main() {
     create: {
       email: modEmail,
       role: "user",
-      passwordHash: await hashPassword("password123"),
+      passwordHash: await hashPassword("password1234"),
     },
   });
 

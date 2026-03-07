@@ -24,27 +24,27 @@ describe('US3 admin registrations list (default excludes cancelled) (e2e)', () =
     await createUserWithRole(ctx.prisma, {
       email: 'admin@example.com',
       name: 'Admin',
-      password: 'password123',
+      password: 'password1234',
       role: Role.admin,
     });
 
     const adminLogin = await loginUser(ctx.app, {
       email: 'admin@example.com',
-      password: 'password123',
+      password: 'password1234',
     });
     const adminToken = adminLogin.body.token as string;
 
     const memberA = await registerAndLogin(ctx.app, {
       email: 'a@example.com',
       name: 'A',
-      password: 'password123',
+      password: 'password1234',
     });
     const tokenA = memberA.body.token as string;
 
     const memberB = await registerAndLogin(ctx.app, {
       email: 'b@example.com',
       name: 'B',
-      password: 'password123',
+      password: 'password1234',
     });
     const tokenB = memberB.body.token as string;
 

@@ -28,7 +28,9 @@ export class ApiError extends Error {
 
 function getBaseUrl(): string {
   const base = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  if (!base) return '';
+  if (!base) {
+    return import.meta.env.DEV ? 'http://localhost:4000' : '';
+  }
   return base.replace(/\/$/, '');
 }
 

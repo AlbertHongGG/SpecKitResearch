@@ -1,11 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../shared/db/prisma.service';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async login(username: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { username } });

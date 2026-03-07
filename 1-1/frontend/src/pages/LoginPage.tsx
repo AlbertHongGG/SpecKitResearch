@@ -73,8 +73,9 @@ export function LoginPage() {
       <div className="mt-4 rounded-md border bg-white p-3 text-sm">
         <div className="font-medium">Seed 帳號</div>
         <ul className="mt-1 list-disc pl-5 text-gray-700">
-          <li>admin@example.com / admin1234</li>
-          <li>member@example.com / member1234</li>
+          <li>admin@example.com / password1234</li>
+          <li>member@example.com / password1234</li>
+          <li>member2@example.com / password1234</li>
         </ul>
       </div>
     </div>

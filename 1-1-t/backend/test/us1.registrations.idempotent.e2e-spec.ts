@@ -48,7 +48,7 @@ describe('US1 register idempotent (e2e)', () => {
     const loginRes = await registerAndLogin(ctx.app, {
       email: 'm1@example.com',
       name: 'M1',
-      password: 'member1234',
+      password: 'password1234',
     });
 
     const token = loginRes.body.token;

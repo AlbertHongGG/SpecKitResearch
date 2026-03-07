@@ -1,4 +1,4 @@
-import { getCsrfToken, loadCsrfTokenFromStorage, setCsrfToken } from './csrf';
+import { clearCsrfToken, getCsrfToken, loadCsrfTokenFromStorage, setCsrfToken } from './csrf';
 import { HttpError } from './httpError';
 
 loadCsrfTokenFromStorage();
@@ -43,31 +43,43 @@ export async function apiFetch<T = any>(
     opts?: { method?: string; json?: Json; formData?: FormData; headers?: Record<string, string> },
 ): Promise<T> {
     const method = (opts?.method ?? 'GET').toUpperCase();
-    const headers: Record<string, string> = { ...(opts?.headers ?? {}) };
-
-    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
-        const csrf = await ensureCsrf();
-        headers['X-CSRF-Token'] = csrf;
-    }
-
     let body: BodyInit | undefined;
     if (opts?.formData) {
         body = opts.formData;
     } else if (opts?.json !== undefined) {
-        headers['Content-Type'] = 'application/json';
         body = JSON.stringify(opts.json);
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
-        method,
-        credentials: 'include',
-        headers,
-        body,
-    });
+    const send = async (): Promise<Response> => {
+        const headers: Record<string, string> = { ...(opts?.headers ?? {}) };
+        if (opts?.json !== undefined) {
+            headers['Content-Type'] = 'application/json';
+        }
+        if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+            const csrf = await ensureCsrf();
+            headers['X-CSRF-Token'] = csrf;
+        }
 
-    const contentType = res.headers.get('content-type') ?? '';
-    const isJson = contentType.includes('application/json');
-    const data = isJson ? await parseJsonSafe(res) : await res.blob();
+        return fetch(`${API_BASE}${path}`, {
+            method,
+            credentials: 'include',
+            headers,
+            body,
+        });
+    };
+
+    let res = await send();
+    let contentType = res.headers.get('content-type') ?? '';
+    let isJson = contentType.includes('application/json');
+    let data = isJson ? await parseJsonSafe(res) : await res.blob();
+
+    if (!res.ok && res.status === 403 && (data as any)?.code === 'CSRF_INVALID') {
+        clearCsrfToken();
+        res = await send();
+        contentType = res.headers.get('content-type') ?? '';
+        isJson = contentType.includes('application/json');
+        data = isJson ? await parseJsonSafe(res) : await res.blob();
+    }
 
     if (!res.ok) {
         throw new HttpError({

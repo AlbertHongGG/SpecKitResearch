@@ -51,9 +51,9 @@ npm run dev
 
 seed 會建立以下帳號提醒：
 
-- admin: `admin@example.com` / `admin1234`
-- member: `member@example.com` / `member1234`
-- member2: `member2@example.com` / `member1234`
+- admin: `admin@example.com` / `password1234`
+- member: `member@example.com` / `password1234`
+- member2: `member2@example.com` / `password1234`
 
 ## 6) 測試
 

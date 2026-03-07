@@ -14,13 +14,13 @@ describe("Banned user auth", () => {
     db.pushSchema();
 
     try {
-      const passwordHash = await hashPassword("password123");
+      const passwordHash = await hashPassword("password1234");
       await db.prisma.user.create({
         data: { email: "banned@example.com", passwordHash, role: "user", isBanned: true },
       });
 
       await expect(
-        login(db.prisma, { email: "banned@example.com", password: "password123" }),
+        login(db.prisma, { email: "banned@example.com", password: "password1234" }),
       ).rejects.toMatchObject({ code: "Forbidden" });
     } finally {
       await db.cleanup();
@@ -32,7 +32,7 @@ describe("Banned user auth", () => {
     db.pushSchema();
 
     try {
-      const passwordHash = await hashPassword("password123");
+      const passwordHash = await hashPassword("password1234");
       const user = await db.prisma.user.create({
         data: { email: "u@example.com", passwordHash, role: "user", isBanned: false },
         select: { id: true },
@@ -72,7 +72,7 @@ describe("Banned user auth", () => {
       expect(after.authenticated).toBe(false);
 
       await expect(
-        login(db.prisma, { email: "u@example.com", password: "password123" }),
+        login(db.prisma, { email: "u@example.com", password: "password1234" }),
       ).rejects.toMatchObject({ code: "Forbidden" });
     } finally {
       await db.cleanup();

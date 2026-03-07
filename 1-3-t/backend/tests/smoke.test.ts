@@ -10,7 +10,7 @@ describe('backend smoke', () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: 'test',
-      DATABASE_URL: originalEnv.DATABASE_URL ?? 'postgresql://app:app@localhost:5432/app',
+      DATABASE_URL: originalEnv.DATABASE_URL ?? 'file:./prisma/test.db',
       SESSION_SECRET: originalEnv.SESSION_SECRET ?? 'dev-secret-change-me-please',
       APP_ORIGIN: originalEnv.APP_ORIGIN ?? 'http://localhost:5173',
     };

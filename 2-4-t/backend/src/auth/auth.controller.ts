@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ZodValidationPipe } from '../shared/http/zod-validation.pipe';
 import { LoginRequestSchema } from '@app/contracts';
@@ -9,7 +9,7 @@ import { loadEnv } from '../shared/config/env';
 export class AuthController {
   private readonly env = loadEnv();
 
-  constructor(private readonly auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('/login')
   async login(

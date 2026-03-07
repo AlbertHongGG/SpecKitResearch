@@ -70,4 +70,16 @@ export async function registerAdminFlowsRoutes(app: FastifyInstance) {
       return adminFlowService.deactivateTemplate({ user, templateId });
     },
   );
+
+  app.post(
+    '/:templateId/activate',
+    {
+      preHandler: requireRole(['Admin']),
+    },
+    async (request) => {
+      const user = requireAuthenticatedUser(request);
+      const { templateId } = parseParams(request, TemplateIdParamsSchema);
+      return adminFlowService.activateTemplate({ user, templateId });
+    },
+  );
 }

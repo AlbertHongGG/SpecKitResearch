@@ -29,19 +29,19 @@ async function upsertUser(params: {
 async function main() {
   await upsertUser({
     email: 'admin@example.com',
-    password: 'Admin1234!',
+    password: 'password1234',
     role: Role.Admin,
   })
 
   await upsertUser({
     email: 'agent@example.com',
-    password: 'Agent1234!',
+    password: 'password1234',
     role: Role.Agent,
   })
 
   await upsertUser({
     email: 'customer@example.com',
-    password: 'Customer1234!',
+    password: 'password1234',
     role: Role.Customer,
   })
 }

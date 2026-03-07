@@ -14,16 +14,28 @@ export class LeaveBalancesController {
         const balances = await this.prisma.leaveBalance.findMany({
             where: { userId: user.id, year },
             orderBy: { createdAt: 'asc' },
+            include: {
+                leaveType: {
+                    select: {
+                        id: true,
+                        name: true,
+                        annualQuota: true,
+                        carryOver: true,
+                        requireAttachment: true,
+                        isActive: true,
+                    },
+                },
+            },
         });
 
         return {
             items: balances.map((b) => ({
-                leaveTypeId: b.leaveTypeId,
+                id: b.id,
+                leaveType: b.leaveType,
                 year: b.year,
                 quota: b.quota,
-                used: b.usedDays,
-                reserved: b.reservedDays,
-                available: b.quota - b.usedDays - b.reservedDays,
+                usedDays: b.usedDays,
+                reservedDays: b.reservedDays,
             })),
         };
     }

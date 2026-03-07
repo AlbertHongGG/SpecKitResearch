@@ -106,7 +106,7 @@ describe('US3 dashboard', () => {
   it('aggregates SLA metrics, status distribution, and agent load within range', async () => {
     const adminLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'admin@example.com', password: 'AdminPass123' })
+      .send({ email: 'admin@example.com', password: 'password1234' })
       .expect(200);
     const adminLogin = LoginResponseSchema.parse(adminLoginRes.body);
 

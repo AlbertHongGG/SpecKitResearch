@@ -1,7 +1,7 @@
 import { prisma } from '../src/db/prisma';
 import { hashPassword } from '../src/auth/password';
 async function main() {
-    const passwordHash = await hashPassword('password');
+    const passwordHash = await hashPassword('password1234');
     const DEFAULT_TEMPLATE_ID = '00000000-0000-0000-0000-000000000001';
     const admin = await prisma.user.upsert({
         where: { email: 'admin@example.com' },

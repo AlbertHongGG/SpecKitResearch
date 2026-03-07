@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { use, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { AppShell } from '../../../../components/AppShell';
@@ -10,14 +10,15 @@ import { api } from '../../../../lib/api/client';
 import { useMe } from '../../../../features/auth/useMe';
 import { useToast } from '../../../../components/Toast';
 
-export default function ProjectArchivedPage({ params }: { params: { projectId: string } }) {
+export default function ProjectArchivedPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = use(params);
     const toast = useToast();
     const queryClient = useQueryClient();
     const { data: me } = useMe();
 
     const snapshotQuery = useQuery({
-        queryKey: ['snapshot', params.projectId],
-        queryFn: () => api.snapshot(params.projectId),
+        queryKey: ['snapshot', projectId],
+        queryFn: () => api.snapshot(projectId),
     });
 
     const myRole = useMemo(() => {
@@ -27,10 +28,10 @@ export default function ProjectArchivedPage({ params }: { params: { projectId: s
     }, [me, snapshotQuery.data]);
 
     const archiveProject = useMutation({
-        mutationFn: async () => api.archiveProject(params.projectId),
+        mutationFn: async () => api.archiveProject(projectId),
         onSuccess: async () => {
             toast.push('已封存專案', 'info');
-            await queryClient.invalidateQueries({ queryKey: ['snapshot', params.projectId] });
+            await queryClient.invalidateQueries({ queryKey: ['snapshot', projectId] });
         },
         onError: (err) => toast.push(err instanceof Error ? err.message : '封存失敗', 'error'),
     });

@@ -15,6 +15,7 @@ export class AuditService {
     targetId: string;
     metadata?: unknown;
   }) {
+    const startedAt = Date.now();
     await this.prisma.auditLog.create({
       data: {
         actorId: params.actorId,
@@ -25,5 +26,14 @@ export class AuditService {
         metadata: JSON.stringify(params.metadata ?? null),
       },
     });
+
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 200) {
+      console.warn('[audit] slow write', {
+        action: params.action,
+        targetType: params.targetType,
+        elapsedMs: elapsed,
+      });
+    }
   }
 }

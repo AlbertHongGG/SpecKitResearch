@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { RequireAuthGuard } from '../auth/require-auth.guard';
 import { RequireOwnerGuard } from '../auth/require-owner.guard';
@@ -15,9 +15,9 @@ import { CloseService } from './close.service';
 @Controller('surveys')
 export class SurveysController {
   constructor(
-    private readonly surveys: SurveysService,
-    private readonly publish: PublishService,
-    private readonly close: CloseService
+    @Inject(SurveysService) private readonly surveys: SurveysService,
+    @Inject(PublishService) private readonly publish: PublishService,
+    @Inject(CloseService) private readonly close: CloseService
   ) {}
 
   @Get()

@@ -43,7 +43,7 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold">登入</div>
-        <div className="mt-1 text-sm text-slate-600">使用 seed 帳號：admin/user/reviewer1/reviewer2@example.com，密碼：password</div>
+        <div className="mt-1 text-sm text-slate-600">使用 seed 帳號：admin/user/reviewer1/reviewer2@example.com，密碼：password1234</div>
 
         {mutation.error ? <ErrorState title="登入失敗" error={mutation.error} /> : null}
 

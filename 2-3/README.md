@@ -16,10 +16,11 @@ cd backend
 npm install
 cp .env.example .env
 npm run prisma:migrate
+npm run seed
 npm run dev
 ```
 
-Backend 預設啟動在 `http://localhost:3001`。
+Backend 預設啟動在 `http://localhost:3000`。
 
 ### 2) Frontend
 
@@ -30,7 +31,7 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Frontend 預設啟動在 `http://localhost:3000`。
+Frontend 預設啟動在 `http://localhost:5173`。
 
 ## Specs
 

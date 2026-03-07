@@ -9,6 +9,11 @@ export function setCsrfToken(token: string) {
     sessionStorage.setItem('csrfToken', token);
 }
 
+export function clearCsrfToken() {
+    csrfToken = null;
+    sessionStorage.removeItem('csrfToken');
+}
+
 export function loadCsrfTokenFromStorage() {
     const v = sessionStorage.getItem('csrfToken');
     if (v) csrfToken = v;

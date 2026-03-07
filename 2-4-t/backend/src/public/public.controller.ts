@@ -1,10 +1,10 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, Inject, NotFoundException, Param } from '@nestjs/common';
 import { PrismaService } from '../shared/db/prisma.service';
 import type { PublicSurvey } from '@app/contracts';
 
 @Controller()
 export class PublicController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   @Get('/s/:slug')
   async getPublicSurvey(@Param('slug') slug: string) {

@@ -42,7 +42,18 @@ export class LeaveRequestsService {
                 ? ({ createdAt: 'desc' } as const)
                 : ({ startDate: 'desc' } as const);
 
-        const items = await this.prisma.leaveRequest.findMany({ where, orderBy });
+        const items = await this.prisma.leaveRequest.findMany({
+            where,
+            orderBy,
+            include: {
+                leaveType: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+        });
         return items;
     }
 

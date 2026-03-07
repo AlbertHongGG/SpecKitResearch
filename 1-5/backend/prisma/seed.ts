@@ -2,7 +2,7 @@ import { prisma } from '../src/repo/prisma.js';
 import { hashPassword } from '../src/lib/password.js';
 
 async function main() {
-  const passwordHash = await hashPassword('password');
+  const passwordHash = await hashPassword('password1234');
 
   const user = await prisma.user.upsert({
     where: { email: 'user@example.com' },
@@ -55,6 +55,7 @@ async function main() {
 
   // Keep unused variables from being tree-shaken in future refactors.
   void user;
+  void reviewer;
 }
 
 main()

@@ -3,9 +3,9 @@ import { test, expect } from '@playwright/test';
 test('US3: Admin 建模板→User 送審→Reviewer approve→Admin 封存', async ({ page }) => {
   const templateName = `E2E US3 模板 ${Date.now()}`;
 
-  async function loginAs(email: string) {
+  async function loginAs(email: string, password = 'password1234') {
     await page.getByTestId('login-email').fill(email);
-    await page.getByTestId('login-password').fill('password');
+    await page.getByTestId('login-password').fill(password);
     await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/auth/login') && r.status() === 200),
       page.getByTestId('login-submit').click(),
@@ -17,7 +17,7 @@ test('US3: Admin 建模板→User 送審→Reviewer approve→Admin 封存', asy
 
   // Admin 建立一個只有 1 個 reviewer 的 Serial 模板（方便快速完成）
   await page.goto('/login');
-  await loginAs('admin@example.com');
+  await loginAs('admin@example.com', 'password1234');
 
   await page.goto('/admin/flows');
   await expect(page.getByRole('heading', { name: '流程模板' })).toBeVisible();
@@ -40,7 +40,7 @@ test('US3: Admin 建模板→User 送審→Reviewer approve→Admin 封存', asy
   await page.getByRole('button', { name: '登出' }).click();
   await expect(page).toHaveURL(/\/login/);
 
-  await loginAs('user@example.com');
+  await loginAs('user@example.com', 'password1234');
   await page.goto('/documents');
   await expect(page).toHaveURL(/\/documents/);
 
@@ -75,7 +75,7 @@ test('US3: Admin 建模板→User 送審→Reviewer approve→Admin 封存', asy
   await page.getByRole('button', { name: '登出' }).click();
   await expect(page).toHaveURL(/\/login/);
 
-  await loginAs('admin@example.com');
+  await loginAs('admin@example.com', 'password1234');
 
   await page.goto(docUrl);
   await expect(page.getByRole('button', { name: '封存' })).toBeVisible();

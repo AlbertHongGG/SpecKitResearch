@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
+const frontendOnly = process.env.FRONTEND_ONLY === "1";
+const backendOrigin = process.env.BACKEND_ORIGIN ?? "http://localhost:4000";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -13,6 +15,20 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  async rewrites() {
+    if (!frontendOnly) return [];
+
+    return {
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${backendOrigin}/api/:path*`,
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async headers() {
     return [
       {

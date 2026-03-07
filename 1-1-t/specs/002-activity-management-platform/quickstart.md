@@ -38,8 +38,8 @@ npm run start:dev
 
 Seed 會建立以下預設帳號（可直接用於登入）：
 
-- admin：`admin@example.com` / `admin1234`
-- member：`member@example.com` / `member1234`
+- admin：`admin@example.com` / `password1234`
+- member：`member@example.com` / `password1234`
 
 ## Frontend
 

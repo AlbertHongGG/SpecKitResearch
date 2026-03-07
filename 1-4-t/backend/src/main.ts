@@ -9,7 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
   app.enableCors({
-    origin: true,
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
     credentials: false,
     exposedHeaders: ['x-request-id'],
   })
@@ -17,6 +17,6 @@ async function bootstrap() {
   app.useGlobalInterceptors(new RequestIdInterceptor())
   app.useGlobalFilters(new HttpExceptionFilter())
 
-  await app.listen(env.PORT ?? 3000)
+  await app.listen(env.PORT ?? 4000)
 }
 bootstrap()

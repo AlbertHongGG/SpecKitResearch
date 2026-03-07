@@ -9,7 +9,13 @@ export interface SessionResponse {
 export function useSession() {
   return useQuery({
     queryKey: ['session'],
-    queryFn: async () => apiRequest<SessionResponse>('/session', { skipAuthRedirect: true }),
+    queryFn: async () => {
+      const data = await apiRequest<SessionResponse>('/session', { skipAuthRedirect: true });
+      if (!data || !data.user) {
+        throw new Error('Invalid session response');
+      }
+      return data;
+    },
     staleTime: 60_000,
   });
 }

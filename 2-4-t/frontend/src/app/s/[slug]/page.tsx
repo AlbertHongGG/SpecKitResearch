@@ -1,5 +1,6 @@
 import { RespondPage } from '@/features/respond/RespondPage';
 
-export default function Page({ params }: { params: { slug: string } }) {
-  return <RespondPage slug={params.slug} />;
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <RespondPage slug={slug} />;
 }

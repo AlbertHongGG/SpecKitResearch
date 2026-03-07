@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -21,6 +21,7 @@ export function CreateTicketDialog(props: { open: boolean; onClose: () => void }
   const dialogTitleId = useId()
   const categoryId = useId()
   const categoryErrorId = `${categoryId}-error`
+  const wasOpenRef = useRef(props.open)
 
   const createTicket = useCreateTicket()
   const {
@@ -34,10 +35,11 @@ export function CreateTicketDialog(props: { open: boolean; onClose: () => void }
   })
 
   useEffect(() => {
-    if (!props.open) {
+    if (wasOpenRef.current && !props.open) {
       reset({ title: '', category: 'Other', description: '' })
       createTicket.reset()
     }
+    wasOpenRef.current = props.open
   }, [props.open, reset, createTicket])
 
   if (!props.open) return null

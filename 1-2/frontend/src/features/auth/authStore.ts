@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { apiFetch, ensureCsrf } from '../../lib/apiClient';
+import { clearCsrfToken } from '../../lib/csrf';
 
 export type MeUser = {
     id: string;
@@ -23,9 +24,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (get().meLoading) return get().me;
         set({ meLoading: true });
         try {
-            const me = await apiFetch<MeUser>('/auth/me');
-            set({ me });
-            return me;
+            const res = await apiFetch<{ user: MeUser }>('/auth/me');
+            set({ me: res.user });
+            return res.user;
         } catch {
             set({ me: null });
             return null;
@@ -39,7 +40,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await get().loadMe();
     },
     logout: async () => {
-        await apiFetch('/auth/logout', { method: 'POST' });
-        set({ me: null });
+        try {
+            await apiFetch('/auth/logout', { method: 'POST' });
+        } finally {
+            clearCsrfToken();
+            set({ me: null });
+        }
     },
 }));

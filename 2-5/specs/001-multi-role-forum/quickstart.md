@@ -22,7 +22,9 @@
 
 （選配）
 - `SEED_ADMIN_EMAIL=admin@example.com`
-- `SEED_ADMIN_PASSWORD=change-me-please`
+- `SEED_ADMIN_PASSWORD=password1234`
+- `SEED_USER_EMAIL=user@example.com`
+- `SEED_MOD_EMAIL=mod@example.com`
 
 ---
 

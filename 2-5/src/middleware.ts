@@ -1,5 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth/cookies";
+import { isOriginAllowed } from "@/lib/http/cors";
+
+function buildCorsHeaders(req: NextRequest) {
+  const headers = new Headers();
+  const origin = req.headers.get("origin");
+
+  if (!origin) return headers;
+  if (!isOriginAllowed(origin)) return headers;
+
+  const requestedHeaders = req.headers.get("access-control-request-headers");
+  headers.set("access-control-allow-origin", origin);
+  headers.set("access-control-allow-credentials", "true");
+  headers.set("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  headers.set("access-control-allow-headers", requestedHeaders ?? "content-type,x-csrf-token");
+  headers.set("vary", "origin");
+
+  return headers;
+}
 
 function buildLoginUrl(req: NextRequest) {
   const url = req.nextUrl.clone();
@@ -23,6 +41,26 @@ async function fetchMe(req: NextRequest) {
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
+  const isApiRoute = pathname.startsWith("/api/");
+
+  if (isApiRoute) {
+    const origin = req.headers.get("origin");
+    const corsHeaders = buildCorsHeaders(req);
+
+    if (req.method === "OPTIONS") {
+      if (origin && !isOriginAllowed(origin)) {
+        return new NextResponse(null, { status: 403 });
+      }
+
+      return new NextResponse(null, { status: 204, headers: corsHeaders });
+    }
+
+    const res = NextResponse.next();
+    corsHeaders.forEach((value, key) => {
+      res.headers.set(key, value);
+    });
+    return res;
+  }
 
   const needsAuth =
     pathname.startsWith("/threads/new") ||
@@ -74,5 +112,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/threads/new", "/admin/:path*", "/mod/:path*"],
+  matcher: ["/api/:path*", "/threads/new", "/admin/:path*", "/mod/:path*"],
 };

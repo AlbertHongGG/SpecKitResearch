@@ -19,7 +19,7 @@ test("US3 moderator scope: A allowed, B forbidden", async ({ page }) => {
   expect(boardB).toBeTruthy();
 
   const modEmail = `mod_${uniq("u")}@example.com`;
-  const modPassword = "password-1234";
+  const modPassword = "password1234";
   const modPasswordHash = await bcrypt.hash(modPassword, 12);
 
   const mod = await prisma.user.create({
@@ -69,7 +69,7 @@ test("US3 moderator scope: A allowed, B forbidden", async ({ page }) => {
 
   // Reporter registers & reports both threads
   const reporterEmail = `${uniq("r")}@example.com`;
-  const reporterPassword = "password-1234";
+  const reporterPassword = "password1234";
 
   await page.goto("/register?returnTo=/");
   await page.getByLabel("Email").fill(reporterEmail);

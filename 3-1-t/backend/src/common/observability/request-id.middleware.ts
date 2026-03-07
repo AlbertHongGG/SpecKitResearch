@@ -13,5 +13,22 @@ export function requestIdMiddleware(
   req.headers['x-request-id'] = requestId;
   res.setHeader('x-request-id', requestId);
 
+  const startedAt = Date.now();
+  console.info('[request:start]', {
+    requestId,
+    method: req.method,
+    path: req.originalUrl,
+  });
+
+  res.on('finish', () => {
+    console.info('[request:finish]', {
+      requestId,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      elapsedMs: Date.now() - startedAt,
+    });
+  });
+
   next();
 }

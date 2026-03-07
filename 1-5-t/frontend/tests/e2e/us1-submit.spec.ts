@@ -4,7 +4,7 @@ test('US1: User 建立 Draft → 編輯 → 上傳附件 → 送審', async ({ p
   await page.goto('/login');
 
   await page.getByTestId('login-email').fill('user@example.com');
-  await page.getByTestId('login-password').fill('password');
+  await page.getByTestId('login-password').fill('password1234');
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/auth/login') && r.status() === 200),
     page.getByTestId('login-submit').click(),

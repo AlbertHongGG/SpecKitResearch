@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Inject, Injectable, NestMiddleware } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import { PrismaService } from '../shared/db/prisma.service';
 import { loadEnv } from '../shared/config/env';
@@ -9,7 +9,7 @@ export type RequestUser = { id: string; username: string };
 export class SessionMiddleware implements NestMiddleware {
   private readonly env = loadEnv();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async use(req: Request, _res: Response, next: NextFunction) {
     const sid = (req.cookies?.[this.env.SESSION_COOKIE_NAME] ?? null) as string | null;

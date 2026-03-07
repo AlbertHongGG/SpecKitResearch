@@ -6,7 +6,7 @@ function uniq(prefix: string) {
 
 test("US2 thread: register -> login -> create draft -> publish", async ({ page }) => {
   const email = `${uniq("u")}@example.com`;
-  const password = "password-1234";
+  const password = "password1234";
 
   await page.goto("/");
   await page.getByRole("link", { name: "註冊" }).click();

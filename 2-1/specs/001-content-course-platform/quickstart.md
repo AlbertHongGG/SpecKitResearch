@@ -43,9 +43,9 @@
 
 ### Seeded accounts (dev)
 
-- admin: `admin@example.com` / `password123`
-- instructor: `instructor@example.com` / `password123`
-- student: `student@example.com` / `password123`
+- admin: `admin@example.com` / `password1234`
+- instructor: `instructor@example.com` / `password1234`
+- student: `student@example.com` / `password1234`
 
 ### Automated smoke test
 

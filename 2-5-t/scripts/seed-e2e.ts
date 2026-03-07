@@ -24,7 +24,7 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
 
-  const password = "P@ssw0rd1234";
+  const password = "password1234";
   const passwordHash = await bcrypt.hash(password, 10);
 
   const admin = await prisma.user.create({

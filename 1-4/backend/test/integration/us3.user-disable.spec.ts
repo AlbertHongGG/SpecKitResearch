@@ -89,13 +89,13 @@ describe('US3 user disable', () => {
 
     const adminLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'admin@example.com', password: 'AdminPass123' })
+      .send({ email: 'admin@example.com', password: 'password1234' })
       .expect(200);
     const adminLogin = LoginResponseSchema.parse(adminLoginRes.body);
 
     const agentLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'agent@example.com', password: 'AgentPass123' })
+      .send({ email: 'agent@example.com', password: 'password1234' })
       .expect(200);
     const agentLogin = LoginResponseSchema.parse(agentLoginRes.body);
 

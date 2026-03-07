@@ -1,5 +1,6 @@
 'use client';
 
+import { use } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { AppShell } from '../../../../components/AppShell';
@@ -8,14 +9,15 @@ import { api } from '../../../../lib/api/client';
 import { ActivityFeed } from '../../../../features/activity/ActivityFeed';
 import { useProjectEvents } from '../../../../features/realtime/useProjectEvents';
 
-export default function ProjectActivityPage({ params }: { params: { projectId: string } }) {
+export default function ProjectActivityPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = use(params);
     const snapshotQuery = useQuery({
-        queryKey: ['snapshot', params.projectId],
-        queryFn: () => api.snapshot(params.projectId),
+        queryKey: ['snapshot', projectId],
+        queryFn: () => api.snapshot(projectId),
     });
 
     useProjectEvents({
-        projectId: params.projectId,
+        projectId,
         enabled: !!snapshotQuery.data,
         after: snapshotQuery.data?.latestEventId ?? null,
     });
@@ -30,7 +32,7 @@ export default function ProjectActivityPage({ params }: { params: { projectId: s
                             <div className="mt-1 text-xl font-semibold">{snapshotQuery.data.project.name}</div>
                         </div>
 
-                        <ActivityFeed projectId={params.projectId} />
+                        <ActivityFeed projectId={projectId} />
                     </>
                 ) : null}
             </AsyncState>

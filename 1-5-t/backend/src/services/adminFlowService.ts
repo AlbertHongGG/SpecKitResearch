@@ -126,4 +126,20 @@ export const adminFlowService = {
     });
     return { ok: true } as const;
   },
+
+  async activateTemplate(params: { user: SessionUser; templateId: string }) {
+    if (params.user.role !== 'Admin') {
+      throw new ApiError({ statusCode: 403, code: 'Forbidden', message: 'Forbidden' });
+    }
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.approvalFlowTemplate.update({ where: { id: params.templateId }, data: { isActive: true } });
+      await auditEvents.record(params.user, {
+        action: 'AdminFlow.Activate',
+        entityType: 'ApprovalFlowTemplate',
+        entityId: params.templateId,
+        tx,
+      });
+    });
+    return { ok: true } as const;
+  },
 };

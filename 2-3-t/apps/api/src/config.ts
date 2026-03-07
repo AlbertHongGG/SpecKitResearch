@@ -2,8 +2,17 @@ import { z } from 'zod';
 
 const zEnv = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).optional(),
-  API_PORT: z.coerce.number().int().positive().default(3001),
-  WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+  API_PORT: z.coerce.number().int().positive().default(4000),
+  WEB_ORIGIN: z.string().url().default('http://localhost:5174'),
+  WEB_ORIGINS: z
+    .string()
+    .default('http://localhost:5173,http://localhost:5174')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
   DATABASE_URL: z.string().default('file:../../data/app.db'),
   COOKIE_SECRET: z.string().min(16),
 });

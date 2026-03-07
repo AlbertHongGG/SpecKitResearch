@@ -98,19 +98,19 @@ describe('US2 agent concurrency', () => {
   it('two agents race to take a ticket: exactly one succeeds, the other gets 409', async () => {
     const adminLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'admin@example.com', password: 'AdminPass123' })
+      .send({ email: 'admin@example.com', password: 'password1234' })
       .expect(200);
     const adminLogin = LoginResponseSchema.parse(adminLoginRes.body);
 
     const customerLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'customer@example.com', password: 'CustomerPass123' })
+      .send({ email: 'customer@example.com', password: 'password1234' })
       .expect(200);
     const customerLogin = LoginResponseSchema.parse(customerLoginRes.body);
 
     const agent1LoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'agent@example.com', password: 'AgentPass123' })
+      .send({ email: 'agent@example.com', password: 'password1234' })
       .expect(200);
     const agent1Login = LoginResponseSchema.parse(agent1LoginRes.body);
 

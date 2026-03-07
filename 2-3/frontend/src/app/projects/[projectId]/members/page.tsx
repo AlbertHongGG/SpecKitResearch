@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { use, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
@@ -11,12 +11,13 @@ import { api } from '../../../../lib/api/client';
 import { InviteMemberForm } from '../../../../features/members/InviteMemberForm';
 import { MembersTable } from '../../../../features/members/MembersTable';
 
-export default function MembersPage({ params }: { params: { projectId: string } }) {
+export default function MembersPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = use(params);
     const { data: me } = useMe();
 
     const snapshotQuery = useQuery({
-        queryKey: ['snapshot', params.projectId],
-        queryFn: () => api.snapshot(params.projectId),
+        queryKey: ['snapshot', projectId],
+        queryFn: () => api.snapshot(projectId),
     });
 
     const myRole = useMemo(() => {
@@ -28,8 +29,8 @@ export default function MembersPage({ params }: { params: { projectId: string } 
     const isOwner = myRole === 'owner';
 
     const membersQuery = useQuery({
-        queryKey: ['projectMembers', params.projectId],
-        queryFn: () => api.projectMembers(params.projectId),
+        queryKey: ['projectMembers', projectId],
+        queryFn: () => api.projectMembers(projectId),
     });
 
     return (
@@ -41,7 +42,7 @@ export default function MembersPage({ params }: { params: { projectId: string } 
                 </div>
                 <Link
                     className="rounded border bg-white px-3 py-2 text-sm hover:bg-slate-50"
-                    href={`/projects/${params.projectId}/board`}
+                    href={`/projects/${projectId}/board`}
                 >
                     返回看板
                 </Link>
@@ -49,14 +50,14 @@ export default function MembersPage({ params }: { params: { projectId: string } 
 
             {canManage ? (
                 <div className="mt-6">
-                    <InviteMemberForm projectId={params.projectId} />
+                    <InviteMemberForm projectId={projectId} />
                 </div>
             ) : null}
 
             <div className="mt-6">
                 <AsyncState isLoading={membersQuery.isLoading} error={membersQuery.error} empty={false}>
                     <MembersTable
-                        projectId={params.projectId}
+                        projectId={projectId}
                         members={membersQuery.data?.members ?? []}
                         canManage={canManage}
                         isOwner={isOwner}

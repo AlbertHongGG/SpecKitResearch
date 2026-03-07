@@ -39,5 +39,18 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: E2E (placeholder)
-        run: echo "E2E will be enabled after backend/frontend integration scripts are ready."
+      - name: Prepare DB
+        run: npm run prisma:migrate && npm run prisma:seed
+
+      - name: Start backend
+        run: npm run dev:backend &
+
+      - name: Start frontend
+        run: npm run dev:frontend &
+
+      - name: Wait for services
+        run: |
+          npx wait-on http://127.0.0.1:3000 http://127.0.0.1:3001
+
+      - name: E2E
+        run: npm run e2e

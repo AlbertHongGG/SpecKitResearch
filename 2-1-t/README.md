@@ -29,7 +29,7 @@
 
 開啟：
 
-- `http://localhost:3000`
+- `http://localhost:4000`
 
 ## 測試
 
@@ -42,13 +42,13 @@
 - 首次安裝瀏覽器：`npx playwright install`
 - `npm run test:e2e`
 
-（Playwright 會自動啟動 dev server，預設使用 port 3005。）
+（Playwright 會自動啟動 dev server，預設使用 port 4000。）
 
 ## 內建測試帳號（seed）
 
-- Admin：`admin@example.com` / `password123`
-- Instructor：`instructor@example.com` / `password123`
-- Student：`student@example.com` / `password123`
+- Admin：`admin@example.com` / `password1234`
+- Instructor：`instructor@example.com` / `password1234`
+- Student：`student@example.com` / `password1234`
 
 ## 常用指令
 

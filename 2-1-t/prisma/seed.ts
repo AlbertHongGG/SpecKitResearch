@@ -3,7 +3,7 @@ import argon2 from 'argon2';
 import { prisma } from '../src/server/db/prisma';
 
 async function main() {
-  const passwordHash = await argon2.hash('password123', {
+  const passwordHash = await argon2.hash('password1234', {
     type: argon2.argon2id,
   });
 

@@ -11,7 +11,7 @@ import { PendingApprovalsService } from './pending-approvals.service';
 
 @Module({
   imports: [UsersModule, LeaveBalanceModule],
-  controllers: [LeaveRequestsController, PendingApprovalsController],
+  controllers: [PendingApprovalsController, LeaveRequestsController],
   providers: [
     PrismaService,
     LeaveRequestsRepository,

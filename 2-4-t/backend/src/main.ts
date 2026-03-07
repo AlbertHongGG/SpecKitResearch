@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
@@ -19,7 +20,7 @@ async function bootstrap() {
   app.use(new RequestIdMiddleware().use);
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const allowedOrigins = (env.ALLOWED_ORIGINS ?? 'http://localhost:3000')
+  const allowedOrigins = (env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5174')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -29,7 +30,7 @@ async function bootstrap() {
     credentials: true
   });
 
-  await app.listen(3001);
+  await app.listen(env.PORT);
 }
 
 bootstrap();

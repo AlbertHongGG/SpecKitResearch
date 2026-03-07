@@ -36,7 +36,7 @@
 - `npm run db:seed`
 - `npm run dev`
 
-預設會啟動在 `http://localhost:3000`。
+預設會啟動在 `http://localhost:4000`。
 
 ### Frontend（React + Vite）
 
@@ -45,7 +45,7 @@
 - `cd frontend`
 - `npm run dev`
 
-預設會啟動在 `http://localhost:5173`，並透過 Vite proxy 將 `/api/*` 轉送到後端 `http://localhost:3000`。
+預設會啟動在 `http://localhost:5173`，並透過 Vite proxy 將 `/api/*` 轉送到後端 `http://localhost:4000`。
 
 ### 一鍵同時啟動（可選）
 
@@ -75,7 +75,7 @@
 
 ## 預設 seed 帳號
 
-seed 會建立/更新以下帳號（密碼皆為 `password`）：
+seed 會建立/更新以下帳號（密碼皆為 `password1234`）：
 
 - Admin：`admin@example.com`
 - User：`user@example.com`

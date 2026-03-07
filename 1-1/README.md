@@ -45,9 +45,9 @@ npm run dev
 
 ### Seed 帳號
 
-- admin: `admin@example.com` / `admin1234`
-- member: `member@example.com` / `member1234`
-- member2: `member2@example.com` / `member1234`
+- admin: `admin@example.com` / `password1234`
+- member: `member@example.com` / `password1234`
+- member2: `member2@example.com` / `password1234`
 
 ### Member
 

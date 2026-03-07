@@ -14,7 +14,7 @@ async function getCsrfToken(page: import("@playwright/test").Page) {
 
 test("US2 reactions: reply + like/favorite idempotent", async ({ page }) => {
   const email = `${uniq("u")}@example.com`;
-  const password = "password-1234";
+  const password = "password1234";
 
   // Register (auto login)
   await page.goto("/register?returnTo=/");

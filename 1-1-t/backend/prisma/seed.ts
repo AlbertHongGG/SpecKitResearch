@@ -1,7 +1,13 @@
-import { PrismaClient, ActivityStatus, Role, AuditResult } from '@prisma/client';
+import {
+  PrismaClient,
+  ActivityStatus,
+  Role,
+  AuditResult,
+} from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
+const DEFAULT_PASSWORD = 'password1234';
 
 async function upsertUser(params: {
   email: string;
@@ -32,14 +38,24 @@ async function main() {
     email: 'admin@example.com',
     name: 'Admin',
     role: Role.admin,
-    password: 'admin1234',
+    password: DEFAULT_PASSWORD,
   });
 
   const member = await upsertUser({
     email: 'member@example.com',
     name: 'Member',
     role: Role.member,
-    password: 'member1234',
+    password: DEFAULT_PASSWORD,
+  });
+
+  await prisma.registration.deleteMany({});
+  await prisma.activity.deleteMany({});
+  await prisma.auditEvent.deleteMany({
+    where: {
+      action: 'seed',
+      targetType: 'system',
+      targetId: 'seed',
+    },
   });
 
   const now = new Date();
@@ -117,6 +133,90 @@ async function main() {
     },
   });
 
+  const publishedCampusTalk = await prisma.activity.create({
+    data: {
+      title: 'Campus Tech Talk',
+      description: 'Guest sharing session about cloud and AI.',
+      location: 'Lecture Hall A',
+      capacity: 80,
+      registeredCount: 0,
+      status: ActivityStatus.published,
+      deadline: inOneDay,
+      date: inThreeDays,
+      createdByUserId: admin.id,
+    },
+  });
+
+  const publishedWorkshop = await prisma.activity.create({
+    data: {
+      title: 'Design Thinking Workshop',
+      description: 'Hands-on workshop for product discovery.',
+      location: 'Innovation Lab',
+      capacity: 30,
+      registeredCount: 0,
+      status: ActivityStatus.published,
+      deadline: inOneDay,
+      date: inThreeDays,
+      createdByUserId: admin.id,
+    },
+  });
+
+  const publishedNetworking = await prisma.activity.create({
+    data: {
+      title: 'Startup Networking Night',
+      description: 'Meet founders, PMs, and engineers.',
+      location: 'Student Center',
+      capacity: 120,
+      registeredCount: 0,
+      status: ActivityStatus.published,
+      deadline: inTwoDays,
+      date: inThreeDays,
+      createdByUserId: admin.id,
+    },
+  });
+
+  const draftHackathon = await prisma.activity.create({
+    data: {
+      title: 'Hackathon 2026',
+      description: 'Draft plan for annual hackathon.',
+      location: 'Main Building',
+      capacity: 200,
+      registeredCount: 0,
+      status: ActivityStatus.draft,
+      deadline: inTwoDays,
+      date: inThreeDays,
+      createdByUserId: admin.id,
+    },
+  });
+
+  const closedEnglishCorner = await prisma.activity.create({
+    data: {
+      title: 'English Conversation Corner',
+      description: 'Weekly English speaking practice.',
+      location: 'Library Room 2',
+      capacity: 25,
+      registeredCount: 0,
+      status: ActivityStatus.closed,
+      deadline: inOneDay,
+      date: inTwoDays,
+      createdByUserId: admin.id,
+    },
+  });
+
+  const archivedPhotoWalk = await prisma.activity.create({
+    data: {
+      title: 'City Photo Walk',
+      description: 'Archived event for browsing history.',
+      location: 'Downtown',
+      capacity: 40,
+      registeredCount: 0,
+      status: ActivityStatus.archived,
+      deadline: inOneDay,
+      date: inTwoDays,
+      createdByUserId: admin.id,
+    },
+  });
+
   await prisma.auditEvent.create({
     data: {
       actorUserId: admin.id,
@@ -133,10 +233,20 @@ async function main() {
           full: full.id,
           closed: closed.id,
           archived: archived.id,
+          publishedCampusTalk: publishedCampusTalk.id,
+          publishedWorkshop: publishedWorkshop.id,
+          publishedNetworking: publishedNetworking.id,
+          draftHackathon: draftHackathon.id,
+          closedEnglishCorner: closedEnglishCorner.id,
+          archivedPhotoWalk: archivedPhotoWalk.id,
         },
       },
     },
   });
+
+  console.log('Seed complete');
+  console.log('admin@example.com / password1234');
+  console.log('member@example.com / password1234');
 }
 
 main()

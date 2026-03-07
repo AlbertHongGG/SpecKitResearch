@@ -1,5 +1,6 @@
 import { ResultsClient } from './results-client';
 
-export default function Page({ params }: { params: { id: string } }) {
-  return <ResultsClient id={params.id} />;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <ResultsClient id={id} />;
 }

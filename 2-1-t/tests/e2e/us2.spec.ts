@@ -5,7 +5,7 @@ import { acceptNextDialog, login } from './helpers';
 test('US2：instructor create → edit curriculum → submit', async ({ page }) => {
   await login(page, {
     email: 'instructor@example.com',
-    password: 'password123',
+    password: 'password1234',
     next: '/instructor/courses/new',
   });
 

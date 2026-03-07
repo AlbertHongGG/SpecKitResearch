@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Inject, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { SubmissionRequestSchema } from '@app/contracts';
 import { ZodValidationPipe } from '../shared/http/zod-validation.pipe';
@@ -8,8 +8,8 @@ import { ResponsesService } from './responses.service';
 @Controller()
 export class ResponsesController {
   constructor(
-    private readonly antiAbuse: AntiAbuseService,
-    private readonly responses: ResponsesService
+    @Inject(AntiAbuseService) private readonly antiAbuse: AntiAbuseService,
+    @Inject(ResponsesService) private readonly responses: ResponsesService
   ) {}
 
   @Post('/s/:slug/responses')

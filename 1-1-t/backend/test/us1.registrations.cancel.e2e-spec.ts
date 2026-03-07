@@ -48,7 +48,7 @@ describe('US1 cancel registration (e2e)', () => {
     const token = (await registerAndLogin(ctx.app, {
       email: 'm1@example.com',
       name: 'M1',
-      password: 'member1234',
+      password: 'password1234',
     })).body.token;
 
     await request(ctx.app.getHttpServer())

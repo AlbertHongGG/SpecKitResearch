@@ -12,7 +12,15 @@ export function useMe() {
             try {
                 return await api.me();
             } catch (err) {
-                if (err instanceof ApiError && err.status === 401) return null;
+                if (err instanceof ApiError && err.status === 401) {
+                    try {
+                        await api.refresh();
+                        return await api.me();
+                    } catch (refreshErr) {
+                        if (refreshErr instanceof ApiError && refreshErr.status === 401) return null;
+                        throw refreshErr;
+                    }
+                }
                 throw err;
             }
         },

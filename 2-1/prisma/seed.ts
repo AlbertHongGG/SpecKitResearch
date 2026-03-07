@@ -20,7 +20,7 @@ async function main() {
     update: {},
     create: {
       email: 'admin@example.com',
-      passwordHash: hashPassword('password123'),
+      passwordHash: hashPassword('password1234'),
       role: 'admin',
       isActive: true,
     },
@@ -31,7 +31,7 @@ async function main() {
     update: {},
     create: {
       email: 'instructor@example.com',
-      passwordHash: hashPassword('password123'),
+      passwordHash: hashPassword('password1234'),
       role: 'instructor',
       isActive: true,
     },
@@ -42,7 +42,7 @@ async function main() {
     update: {},
     create: {
       email: 'student@example.com',
-      passwordHash: hashPassword('password123'),
+      passwordHash: hashPassword('password1234'),
       role: 'student',
       isActive: true,
     },

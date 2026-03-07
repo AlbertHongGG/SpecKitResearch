@@ -70,13 +70,13 @@ describe('US1 customer IDOR (404)', () => {
   it('other customer cannot read or write someone else ticket (404)', async () => {
     const customerLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'customer@example.com', password: 'CustomerPass123' })
+      .send({ email: 'customer@example.com', password: 'password1234' })
       .expect(200);
 
     const customerLogin = LoginResponseSchema.parse(customerLoginRes.body);
 
     const otherEmail = `other+${Date.now()}@example.com`;
-    const password = 'password123';
+    const password = 'password1234';
 
     await request(server)
       .post('/auth/register')

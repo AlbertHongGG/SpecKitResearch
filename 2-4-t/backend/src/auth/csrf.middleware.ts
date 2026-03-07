@@ -20,7 +20,7 @@ export class CsrfMiddleware implements NestMiddleware {
       return;
     }
 
-    const allowedOrigins = (this.env.ALLOWED_ORIGINS ?? 'http://localhost:3000')
+    const allowedOrigins = (this.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5174')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);

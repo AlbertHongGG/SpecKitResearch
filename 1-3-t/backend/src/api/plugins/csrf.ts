@@ -19,9 +19,10 @@ function readHeader(request: FastifyRequest, name: string) {
 function ensureSameOrigin(request: FastifyRequest, env: Env) {
   const origin = readHeader(request, 'origin');
   const referer = readHeader(request, 'referer');
+  const allowedOrigins = [env.APP_ORIGIN, 'http://localhost:5174'];
 
   // If present, Origin must match.
-  if (origin && origin !== env.APP_ORIGIN) {
+  if (origin && !allowedOrigins.includes(origin)) {
     throw new AppError({
       code: 'CSRF_INVALID',
       status: 403,
@@ -31,7 +32,7 @@ function ensureSameOrigin(request: FastifyRequest, env: Env) {
   }
 
   // If Origin is absent, allow Referer check as defense-in-depth.
-  if (!origin && referer && !referer.startsWith(env.APP_ORIGIN)) {
+  if (!origin && referer && !allowedOrigins.some((allowedOrigin) => referer.startsWith(allowedOrigin))) {
     throw new AppError({
       code: 'CSRF_INVALID',
       status: 403,

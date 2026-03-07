@@ -12,7 +12,8 @@ cp .env.local.example .env.local
 ```
 
 `.env.local`：
-- `NEXT_PUBLIC_API_BASE_URL`（預設 backend `http://localhost:3001`）
+
+- `NEXT_PUBLIC_API_BASE_URL`（預設 backend `http://localhost:3000`）
 
 ## Run
 
@@ -20,4 +21,4 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-預設啟動在 `http://localhost:3000`。
+預設啟動在 `http://localhost:5173`。

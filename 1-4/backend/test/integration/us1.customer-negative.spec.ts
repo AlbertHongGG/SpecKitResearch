@@ -69,7 +69,7 @@ describe('US1 customer negative', () => {
   it('rejects illegal customer actions (wrong status, internal note)', async () => {
     const customerLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'customer@example.com', password: 'CustomerPass123' })
+      .send({ email: 'customer@example.com', password: 'password1234' })
       .expect(200);
 
     const customerLogin = LoginResponseSchema.parse(customerLoginRes.body);

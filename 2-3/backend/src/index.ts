@@ -28,7 +28,7 @@ const app = Fastify({
 
 await app.register(securityHeadersPlugin);
 await app.register(cors, {
-    origin: [/^http:\/\/localhost:3000$/],
+    origin: [/^http:\/\/localhost:5173$/, /^http:\/\/localhost:5174$/],
     credentials: true,
 });
 await app.register(cookie);

@@ -62,7 +62,7 @@ describe('auth smoke', () => {
 
   it('register/login/refresh/logout', async () => {
     const email = `smoke+${Date.now()}@example.com`;
-    const password = 'password123';
+    const password = 'password1234';
 
     const server = app.getHttpServer() as unknown as SupertestServer;
 

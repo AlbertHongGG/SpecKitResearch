@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { PublicSurvey } from '@app/contracts';
 import { validateSubmission } from '@app/logic-engine';
 import { PrismaService } from '../shared/db/prisma.service';
@@ -16,7 +16,7 @@ export type SubmitResponseInput = {
 
 @Injectable()
 export class ResponsesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async submit(input: SubmitResponseInput) {
     const survey = await this.prisma.survey.findUnique({

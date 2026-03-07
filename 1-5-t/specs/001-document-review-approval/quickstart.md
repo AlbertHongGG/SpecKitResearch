@@ -52,15 +52,15 @@
     - `cd frontend`
     - `npm run dev`
 
-> 前端 dev server 會透過 Vite proxy 將 `/api/*` 轉送到 `http://localhost:3000`。
+> 前端 dev server 會透過 Vite proxy 將 `/api/*` 轉送到 `http://localhost:4000`。
 
 ### Seed 預設帳號
 
-seed 會建立/更新以下帳號，密碼皆為 `password`：
+seed 會建立/更新以下帳號，密碼皆為 `password1234`：
 
 - Admin：`admin@example.com`
 - User：`user@example.com`
-- Reviewer：`reviewer1@example.com`、`reviewer2@example.com`
+- Reviewer：`reviewer1@example.com`、`reviewer2@example.com`（供平行審核測試）
 
 ---
 

@@ -36,8 +36,8 @@ pnpm --filter api db:seed
 pnpm dev:api
 pnpm dev:web
 ```
-- API 預設：`http://localhost:3001`
-- Web 預設：`http://localhost:3000`
+- API 預設：`http://localhost:4000`
+- Web 預設：`http://localhost:5174`
 
 ## Checks
 ```sh
@@ -47,8 +47,8 @@ pnpm e2e
 ```
 
 ## Playwright port note
-若你的本機 `:3000` 已被其他程式佔用（常見：Docker），Playwright 預設會用 `http://localhost:3100` 啟動 web server。
-- 需要覆蓋時可設 `PLAYWRIGHT_BASE_URL=http://localhost:3000`（或任何你想用的 port）
+Playwright 預設會用 `http://localhost:5174` 啟動 web server。
+- 需要覆蓋時可設 `PLAYWRIGHT_BASE_URL=http://localhost:5174`（或任何你想用的 port）
 
 ## Specs
 完整規格/契約/任務列表在：

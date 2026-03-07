@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { RequireAuthGuard } from '../auth/require-auth.guard';
 import { RequireOwnerGuard } from '../auth/require-owner.guard';
@@ -6,7 +6,7 @@ import { AggregatesService } from './aggregates.service';
 
 @Controller('surveys/:id/results')
 export class ResultsController {
-  constructor(private readonly aggregates: AggregatesService) {}
+  constructor(@Inject(AggregatesService) private readonly aggregates: AggregatesService) {}
 
   @Get()
   @UseGuards(RequireAuthGuard, RequireOwnerGuard)

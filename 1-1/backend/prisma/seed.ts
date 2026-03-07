@@ -8,8 +8,8 @@ async function main() {
   const memberEmail = 'member@example.com'
   const member2Email = 'member2@example.com'
 
-  const adminPasswordHash = await bcrypt.hash('admin1234', 10)
-  const memberPasswordHash = await bcrypt.hash('member1234', 10)
+  const adminPasswordHash = await bcrypt.hash('password1234', 10)
+  const memberPasswordHash = await bcrypt.hash('password1234', 10)
 
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
@@ -202,10 +202,10 @@ async function main() {
 
   // Demo registrations (for My Activities + roster/export)
   await prisma.registration.upsert({
-    where: { userId_activityId: { userId: member.id, activityId: activityPublishedId } },
+    where: { userId_activityId: { userId: member2.id, activityId: activityPublishedId } },
     update: { canceledAt: null },
     create: {
-      userId: member.id,
+      userId: member2.id,
       activityId: activityPublishedId,
     },
   })

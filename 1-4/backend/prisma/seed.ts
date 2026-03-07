@@ -22,9 +22,9 @@ async function upsertUser(params: { email: string; password: string; role: UserR
 }
 
 async function main() {
-  await upsertUser({ email: 'admin@example.com', password: 'AdminPass123', role: UserRole.ADMIN });
-  await upsertUser({ email: 'agent@example.com', password: 'AgentPass123', role: UserRole.AGENT });
-  await upsertUser({ email: 'customer@example.com', password: 'CustomerPass123', role: UserRole.CUSTOMER });
+  await upsertUser({ email: 'admin@example.com', password: 'password1234', role: UserRole.ADMIN });
+  await upsertUser({ email: 'agent@example.com', password: 'password1234', role: UserRole.AGENT });
+  await upsertUser({ email: 'customer@example.com', password: 'password1234', role: UserRole.CUSTOMER });
 }
 
 main()

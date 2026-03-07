@@ -50,9 +50,9 @@
 
 ## Seed accounts（建議）
 
-- User: `user@example.com` / `password`
-- Reviewer: `reviewer@example.com` / `password`
-- Admin: `admin@example.com` / `password`
+- User: `user@example.com` / `password1234`
+- Reviewer: `reviewer@example.com` / `password1234`
+- Admin: `admin@example.com` / `password1234`
 
 ## Testing (planned)
 

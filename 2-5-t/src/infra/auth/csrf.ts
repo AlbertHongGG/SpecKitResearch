@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
-import { env } from "@/src/lib/env";
+import { env, getAllowedOrigins } from "@/src/lib/env";
 import { AppError } from "@/src/lib/errors/AppError";
 import { ErrorCodes } from "@/src/lib/errors/errorCodes";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "@/src/lib/http/cookieNames";
@@ -68,9 +68,10 @@ export function verifyCsrfToken(token: string, sessionId?: string) {
 function requireSameOrigin(req: NextRequest) {
   const origin = req.headers.get("origin");
   const referer = req.headers.get("referer");
+  const allowedOrigins = getAllowedOrigins();
 
   if (origin) {
-    if (origin !== env.APP_ORIGIN) {
+    if (!allowedOrigins.includes(origin)) {
       throw new AppError(ErrorCodes.Forbidden, "Cross-origin request blocked");
     }
     return;
@@ -79,7 +80,7 @@ function requireSameOrigin(req: NextRequest) {
   if (referer) {
     try {
       const u = new URL(referer);
-      if (u.origin !== env.APP_ORIGIN) {
+      if (!allowedOrigins.includes(u.origin)) {
         throw new AppError(ErrorCodes.Forbidden, "Cross-origin request blocked");
       }
       return;

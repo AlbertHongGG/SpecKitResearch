@@ -18,7 +18,7 @@ async function registerUser(page: any, email: string, password: string) {
 
 test("admin ban user takes effect", async ({ page }) => {
   const email = `ban+${Date.now()}@example.com`;
-  const password = "password123";
+  const password = "password1234";
 
   await registerUser(page, email, password);
 

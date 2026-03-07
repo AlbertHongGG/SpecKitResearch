@@ -3,6 +3,7 @@
 Thumbs.db
 *.tmp
 *.swp
+.vscode/
 
 # Editors
 .idea/
@@ -21,17 +22,21 @@ pnpm-debug.log*
 
 # Node
 node_modules/
+**/node_modules/
 
 # Builds
 /dist
 /build
 /.next
 /out
+**/dist/
+**/build/
 
 # Testing
 /coverage
 /playwright-report
 /test-results
+**/coverage/
 
 # Prisma / SQLite
 *.db

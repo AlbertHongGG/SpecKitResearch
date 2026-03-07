@@ -27,6 +27,9 @@ export const adminApi = {
   deactivateFlow(templateId: string) {
     return apiFetch<{ ok: true }>(`/api/admin/flows/${templateId}/deactivate`, { method: 'POST' });
   },
+  activateFlow(templateId: string) {
+    return apiFetch<{ ok: true }>(`/api/admin/flows/${templateId}/activate`, { method: 'POST' });
+  },
   listUsers(role: 'Reviewer' | 'User' | 'Admin' = 'Reviewer') {
     return apiFetch<ListUsersResponse>(`/api/admin/users?role=${encodeURIComponent(role)}`);
   },

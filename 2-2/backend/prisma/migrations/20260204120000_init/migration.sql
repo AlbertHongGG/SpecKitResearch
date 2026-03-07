@@ -1,2 +1,0 @@
--- Initial migration placeholder.
--- Use `prisma migrate dev` to generate actual SQL based on schema.prisma.

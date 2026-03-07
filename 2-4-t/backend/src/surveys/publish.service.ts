@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../shared/db/prisma.service';
 import { toSurveyDetail } from './survey-mappers';
 import { DraftValidationService } from './draft-validation.service';
@@ -8,9 +8,9 @@ import { logSurveyPublished } from '../shared/logging/events';
 @Injectable()
 export class PublishService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly draftValidation: DraftValidationService,
-    private readonly publishHash: PublishHashBuilder
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(DraftValidationService) private readonly draftValidation: DraftValidationService,
+    @Inject(PublishHashBuilder) private readonly publishHash: PublishHashBuilder
   ) {}
 
   async publish(ownerUserId: string, surveyId: string) {

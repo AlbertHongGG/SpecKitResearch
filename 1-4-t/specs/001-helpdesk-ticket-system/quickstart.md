@@ -42,16 +42,16 @@
 
 Seed 會建立/覆寫以下帳號（可直接用來登入前端）：
 
-- Admin：`admin@example.com` / `Admin1234!`
-- Agent：`agent@example.com` / `Agent1234!`
-- Customer：`customer@example.com` / `Customer1234!`
+- Admin：`admin@example.com` / `password1234`
+- Agent：`agent@example.com` / `password1234`
+- Customer：`customer@example.com` / `password1234`
 
 ### 5) 啟動後端
 
 - `cd backend && npm run dev`
 
 預期服務位址（範例）：
-- API Base URL: `http://localhost:3000`
+- API Base URL: `http://localhost:4000`
 
 ---
 
@@ -65,7 +65,7 @@ Seed 會建立/覆寫以下帳號（可直接用來登入前端）：
 
 建議使用 `frontend/.env`：
 
-- `VITE_API_BASE_URL="http://localhost:3000"`
+- `VITE_API_BASE_URL="http://localhost:4000"`
 
 ### 3) 啟動前端
 

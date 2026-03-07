@@ -42,7 +42,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const apiOrigin = process.env.API_ORIGIN ?? 'http://localhost:4000';
+    const apiOrigin = process.env.API_ORIGIN ?? 'http://localhost:3000';
     return [
       {
         source: '/api/:path*',

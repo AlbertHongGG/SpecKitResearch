@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../shared/db/prisma.service';
 import type { RuleGroup, Question } from '@app/contracts';
 import { DraftValidationService } from './draft-validation.service';
@@ -7,9 +7,9 @@ import { SchemaLockService } from './schema-lock.service';
 @Injectable()
 export class SurveyWriteService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly draftValidation: DraftValidationService,
-    private readonly schemaLock: SchemaLockService
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(DraftValidationService) private readonly draftValidation: DraftValidationService,
+    @Inject(SchemaLockService) private readonly schemaLock: SchemaLockService
   ) {}
 
   async updateDraftStructure(args: {

@@ -10,6 +10,7 @@
 npm install
 cp .env.example .env
 npm run prisma:migrate
+npm run seed
 ```
 
 ## Run
@@ -17,6 +18,8 @@ npm run prisma:migrate
 ```bash
 npm run dev
 ```
+
+預設啟動在 `http://localhost:3000`。
 
 ## Prisma
 

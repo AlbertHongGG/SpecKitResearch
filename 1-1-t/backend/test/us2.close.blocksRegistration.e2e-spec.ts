@@ -18,7 +18,7 @@ describe('US2 close blocks registration (e2e)', () => {
     await createUserWithRole(ctx.prisma, {
       email: 'admin@example.com',
       name: 'Admin',
-      password: 'admin1234',
+      password: 'password1234',
       role: Role.admin,
     });
   });
@@ -31,7 +31,7 @@ describe('US2 close blocks registration (e2e)', () => {
     const adminToken = (
       await loginUser(ctx.app, {
         email: 'admin@example.com',
-        password: 'admin1234',
+        password: 'password1234',
       })
     ).body.token;
 
@@ -68,7 +68,7 @@ describe('US2 close blocks registration (e2e)', () => {
       await registerAndLogin(ctx.app, {
         email: 'm1@example.com',
         name: 'M1',
-        password: 'member1234',
+        password: 'password1234',
       })
     ).body.token;
 

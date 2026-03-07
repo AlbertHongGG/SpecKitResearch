@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const zEnv = z.object({
-  NEXT_PUBLIC_API_BASE_URL: z.string().url().default('http://localhost:3001'),
+  NEXT_PUBLIC_API_BASE_URL: z.string().url().default('http://localhost:4000'),
 });
 
 export type WebConfig = z.infer<typeof zEnv>;

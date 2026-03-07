@@ -46,7 +46,7 @@
 
 預期：
 
-- Web：`http://localhost:3000`
+- Web：`http://localhost:4000`
 - API base：`/api/*`
 
 ## 7) 測試
@@ -60,7 +60,7 @@
 - 首次安裝瀏覽器：`npx playwright install`
 - 跑 e2e：`npm run test:e2e`
 
-提示：Playwright 會自動啟動 dev server（預設 port 3005，可用 `PORT=3000 npm run test:e2e` 覆寫）。
+提示：Playwright 會自動啟動 dev server（預設 port 4000，可用 `PORT=4000 npm run test:e2e` 覆寫）。
 
 ### 上傳檔清理
 
@@ -70,9 +70,9 @@
 
 ## 8) 內建測試帳號（seed）
 
-- Admin：`admin@example.com` / `password123`
-- Instructor：`instructor@example.com` / `password123`
-- Student：`student@example.com` / `password123`
+- Admin：`admin@example.com` / `password1234`
+- Instructor：`instructor@example.com` / `password1234`
+- Student：`student@example.com` / `password1234`
 
 > E2E 測試建議使用獨立 SQLite 檔（例如 `file:./e2e.db`），並在 test setup 中執行 migrate/seed。
 

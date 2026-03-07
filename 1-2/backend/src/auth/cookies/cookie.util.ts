@@ -8,8 +8,14 @@ export type CookieOptions = {
     maxAge?: number;
 };
 
-export const ACCESS_COOKIE_NAME = '__Host-access';
-export const REFRESH_COOKIE_NAME = '__Host-refresh';
+function isSecureCookieEnabled(): boolean {
+    return (process.env.COOKIE_SECURE ?? 'false').toLowerCase() === 'true';
+}
+
+const COOKIE_PREFIX = isSecureCookieEnabled() ? '__Host-' : '';
+
+export const ACCESS_COOKIE_NAME = `${COOKIE_PREFIX}access`;
+export const REFRESH_COOKIE_NAME = `${COOKIE_PREFIX}refresh`;
 export const XSRF_COOKIE_NAME = 'XSRF-TOKEN';
 
 export function getAccessCookieOptions(maxAgeMs: number): CookieOptions {

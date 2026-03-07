@@ -19,8 +19,17 @@ export class ApiClientError extends Error {
   }
 }
 
+function resolveApiUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (!base) return path;
+
+  return new URL(path, base).toString();
+}
+
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(resolveApiUrl(path), {
     credentials: "include",
     cache: "no-store",
     ...init,

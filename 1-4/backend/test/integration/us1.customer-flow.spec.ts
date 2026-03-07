@@ -79,14 +79,14 @@ describe('US1 customer flow', () => {
   it('customer creates ticket, agent progresses, customer replies, agent resolves, customer closes', async () => {
     const customerLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'customer@example.com', password: 'CustomerPass123' })
+      .send({ email: 'customer@example.com', password: 'password1234' })
       .expect(200);
 
     const customerLogin = LoginResponseSchema.parse(customerLoginRes.body);
 
     const agentLoginRes = await request(server)
       .post('/auth/login')
-      .send({ email: 'agent@example.com', password: 'AgentPass123' })
+      .send({ email: 'agent@example.com', password: 'password1234' })
       .expect(200);
 
     const agentLogin = LoginResponseSchema.parse(agentLoginRes.body);

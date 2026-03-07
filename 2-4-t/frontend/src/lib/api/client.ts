@@ -31,7 +31,7 @@ export async function apiFetchJson<T>(
   init: RequestInit = {},
   opts: { baseUrl?: string; csrfToken?: string } = {}
 ): Promise<T> {
-  const baseUrl = opts.baseUrl ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
+  const baseUrl = opts.baseUrl ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
   const url = path.startsWith('http') ? path : `${baseUrl}${path}`;
 
   const headers = new Headers(init.headers);

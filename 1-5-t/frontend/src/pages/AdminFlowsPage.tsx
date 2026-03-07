@@ -56,6 +56,17 @@ export function AdminFlowsPage() {
     },
   });
 
+  const activateMutation = useMutation({
+    mutationFn: (templateId: string) => adminApi.activateFlow(templateId),
+    onSuccess: async () => {
+      await query.refetch();
+      toast.success('模板已啟用');
+    },
+    onError: (e) => {
+      toast.error('啟用失敗', e instanceof Error ? e.message : '請稍後再試');
+    },
+  });
+
   if (query.isLoading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
@@ -98,11 +109,10 @@ export function AdminFlowsPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  loading={deactivateMutation.isPending}
-                  disabled={!t.isActive}
-                  onClick={() => deactivateMutation.mutate(t.id)}
+                  loading={deactivateMutation.isPending || activateMutation.isPending}
+                  onClick={() => (t.isActive ? deactivateMutation.mutate(t.id) : activateMutation.mutate(t.id))}
                 >
-                  停用
+                  {t.isActive ? '停用' : '啟用'}
                 </Button>
               </div>
             </div>

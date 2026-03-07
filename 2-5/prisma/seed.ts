@@ -5,9 +5,15 @@ const prisma = new PrismaClient();
 
 async function main() {
   const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@example.com").trim().toLowerCase();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "change-me-please";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "password1234";
+  const userEmail = (process.env.SEED_USER_EMAIL ?? "user@example.com").trim().toLowerCase();
+  const userPassword = process.env.SEED_USER_PASSWORD ?? "password1234";
+  const modEmail = (process.env.SEED_MOD_EMAIL ?? "mod@example.com").trim().toLowerCase();
+  const modPassword = process.env.SEED_MOD_PASSWORD ?? "password1234";
 
   const passwordHash = await bcrypt.hash(adminPassword, 12);
+  const userPasswordHash = await bcrypt.hash(userPassword, 12);
+  const modPasswordHash = await bcrypt.hash(modPassword, 12);
 
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
@@ -19,6 +25,36 @@ async function main() {
       email: adminEmail,
       role: "admin",
       passwordHash,
+      isBanned: false,
+    },
+  });
+
+  const user = await prisma.user.upsert({
+    where: { email: userEmail },
+    update: {
+      role: "user",
+      passwordHash: userPasswordHash,
+      isBanned: false,
+    },
+    create: {
+      email: userEmail,
+      role: "user",
+      passwordHash: userPasswordHash,
+      isBanned: false,
+    },
+  });
+
+  const moderator = await prisma.user.upsert({
+    where: { email: modEmail },
+    update: {
+      role: "user",
+      passwordHash: modPasswordHash,
+      isBanned: false,
+    },
+    create: {
+      email: modEmail,
+      role: "user",
+      passwordHash: modPasswordHash,
       isBanned: false,
     },
   });
@@ -47,6 +83,20 @@ async function main() {
 
   const general = await prisma.board.findUnique({ where: { name: "General" } });
   if (!general) return;
+
+  await prisma.moderatorAssignment.upsert({
+    where: {
+      boardId_userId: {
+        boardId: general.id,
+        userId: moderator.id,
+      },
+    },
+    update: {},
+    create: {
+      boardId: general.id,
+      userId: moderator.id,
+    },
+  });
 
   // Seed a few threads for US1 browse/search tests.
   const base = {
@@ -88,6 +138,36 @@ async function main() {
       authorId: admin.id,
       content: "這是一則回覆（seed）。",
       status: "visible",
+    },
+  });
+
+  await prisma.like.upsert({
+    where: {
+      userId_targetType_targetId: {
+        userId: user.id,
+        targetType: "thread",
+        targetId: published.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      targetType: "thread",
+      targetId: published.id,
+    },
+  });
+
+  await prisma.favorite.upsert({
+    where: {
+      userId_threadId: {
+        userId: user.id,
+        threadId: published.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      threadId: published.id,
     },
   });
 

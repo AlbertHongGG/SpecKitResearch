@@ -6,7 +6,7 @@ test('US3：admin review + taxonomy/users + stats smoke', async ({ page }) => {
   // Prepare a submitted course as instructor
   await login(page, {
     email: 'instructor@example.com',
-    password: 'password123',
+    password: 'password1234',
     next: '/instructor/courses/new',
   });
 
@@ -27,7 +27,7 @@ test('US3：admin review + taxonomy/users + stats smoke', async ({ page }) => {
   // Admin reviews
   await login(page, {
     email: 'admin@example.com',
-    password: 'password123',
+    password: 'password1234',
     next: '/admin/review',
   });
 

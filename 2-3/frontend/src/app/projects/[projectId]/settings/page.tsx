@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { use, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -11,13 +11,14 @@ import { useMe } from '../../../../features/auth/useMe';
 import { api } from '../../../../lib/api/client';
 import { ProjectSettingsForm } from '../../../../features/projects/ProjectSettingsForm';
 
-export default function ProjectSettingsPage({ params }: { params: { projectId: string } }) {
+export default function ProjectSettingsPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = use(params);
     const router = useRouter();
     const { data: me } = useMe();
 
     const snapshotQuery = useQuery({
-        queryKey: ['snapshot', params.projectId],
-        queryFn: () => api.snapshot(params.projectId),
+        queryKey: ['snapshot', projectId],
+        queryFn: () => api.snapshot(projectId),
     });
 
     const myRole = useMemo(() => {
@@ -35,7 +36,7 @@ export default function ProjectSettingsPage({ params }: { params: { projectId: s
                 <div>
                     <h1 className="text-xl font-semibold">設定</h1>
                     <div className="mt-1 text-sm text-slate-600">
-                        <Link className="underline" href={`/projects/${params.projectId}/board`}>
+                        <Link className="underline" href={`/projects/${projectId}/board`}>
                             返回看板
                         </Link>
                     </div>

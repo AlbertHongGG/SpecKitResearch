@@ -47,7 +47,7 @@ describe('US1 /me/activities (e2e)', () => {
     const token = (await registerAndLogin(ctx.app, {
       email: 'm1@example.com',
       name: 'M1',
-      password: 'member1234',
+      password: 'password1234',
     })).body.token;
 
     // register both

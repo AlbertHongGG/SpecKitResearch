@@ -12,26 +12,27 @@ if (!databaseUrl) {
 const prisma = createPrismaClient(databaseUrl);
 
 async function main() {
-  const ownerEmail = 'dev-owner@example.com';
-  const memberEmail = 'dev-member@example.com';
-  const password = 'password123';
+  const ownerEmail = 'owner@example.com';
+  const memberEmail = 'member@example.com';
+  const password = 'password1234';
+  const passwordHash = await hashPassword(password);
 
   const owner = await prisma.user.upsert({
     where: { email: ownerEmail },
-    update: { displayName: 'Dev Owner' },
+    update: { displayName: 'Dev Owner', passwordHash },
     create: {
       email: ownerEmail,
-      passwordHash: await hashPassword(password),
+      passwordHash,
       displayName: 'Dev Owner',
     },
   });
 
   const member = await prisma.user.upsert({
     where: { email: memberEmail },
-    update: { displayName: 'Dev Member' },
+    update: { displayName: 'Dev Member', passwordHash },
     create: {
       email: memberEmail,
-      passwordHash: await hashPassword(password),
+      passwordHash,
       displayName: 'Dev Member',
     },
   });

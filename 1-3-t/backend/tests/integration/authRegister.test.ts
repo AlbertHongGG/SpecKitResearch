@@ -21,7 +21,7 @@ describe('POST /auth/register', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.DATABASE_URL =
-      process.env.DATABASE_URL ?? 'postgresql://app:app@localhost:5432/app';
+      process.env.DATABASE_URL ?? 'file:./prisma/test.db';
     process.env.SESSION_SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-me-please';
     process.env.APP_ORIGIN = process.env.APP_ORIGIN ?? appOrigin;
 

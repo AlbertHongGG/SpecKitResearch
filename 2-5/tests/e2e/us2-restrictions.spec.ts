@@ -10,7 +10,7 @@ test("US2 restrictions: locked thread and inactive board", async ({ page }) => {
   const prisma = new PrismaClient();
 
   const email = `${uniq("u")}@example.com`;
-  const password = "password-1234";
+  const password = "password1234";
 
   const admin = await prisma.user.findFirst({ where: { role: "admin" } });
   expect(admin).toBeTruthy();

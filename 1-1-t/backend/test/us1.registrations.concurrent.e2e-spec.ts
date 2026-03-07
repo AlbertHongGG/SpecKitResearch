@@ -48,13 +48,13 @@ describe('US1 concurrent registration (e2e)', () => {
     const t1 = (await registerAndLogin(ctx.app, {
       email: 'm1@example.com',
       name: 'M1',
-      password: 'member1234',
+      password: 'password1234',
     })).body.token;
 
     const t2 = (await registerAndLogin(ctx.app, {
       email: 'm2@example.com',
       name: 'M2',
-      password: 'member1234',
+      password: 'password1234',
     })).body.token;
 
     const [r1, r2] = await Promise.allSettled([

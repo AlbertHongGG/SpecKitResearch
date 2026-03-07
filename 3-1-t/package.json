@@ -15,9 +15,11 @@
     "lint:frontend": "npm run --workspace frontend lint",
     "format": "prettier . --write",
     "test": "npm run test:backend && npm run test:frontend",
+    "test:integration": "npm run prisma:migrate && npm run prisma:seed && npm run test && npm run e2e",
     "test:backend": "npm run --workspace backend test",
     "test:frontend": "npm run --workspace frontend test",
     "e2e": "npm run --workspace frontend e2e",
+    "verify:all": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed && npm run lint && npm run test && npm run e2e",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema prisma/schema.prisma",
@@ -26,7 +28,8 @@
   "devDependencies": {
     "concurrently": "^9.0.0",
     "prettier": "^3.3.3",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "wait-on": "^8.0.3"
   },
   "keywords": [],
   "author": "",

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { z } from 'zod';
 
 const booleanFromString = z.preprocess((value) => {
@@ -11,7 +12,7 @@ const booleanFromString = z.preprocess((value) => {
 
 const envSchema = z.object({
     DATABASE_URL: z.string().min(1),
-    PORT: z.coerce.number().int().positive().default(3001),
+    PORT: z.coerce.number().int().positive().default(3000),
 
     AUTH_JWT_SECRET: z.string().min(16),
     AUTH_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),

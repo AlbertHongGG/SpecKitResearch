@@ -2,7 +2,7 @@ import { prisma } from '../src/db/prisma.js';
 import { hashPassword } from '../src/auth/password.js';
 
 async function main() {
-  const passwordHash = await hashPassword('password');
+  const passwordHash = await hashPassword('password1234');
 
   const DEFAULT_TEMPLATE_ID = '00000000-0000-0000-0000-000000000001';
 

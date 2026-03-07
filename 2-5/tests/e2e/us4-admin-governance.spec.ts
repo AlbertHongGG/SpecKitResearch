@@ -11,15 +11,15 @@ test("US4 admin governance: boards + moderator + ban + audit", async ({ page }) 
   const prisma = new PrismaClient();
 
   const adminEmail = `admin_${uniq("u")}@example.com`;
-  const adminPassword = "password-1234";
+  const adminPassword = "password1234";
   const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   const modEmail = `mod_${uniq("u")}@example.com`;
-  const modPassword = "password-1234";
+  const modPassword = "password1234";
   const modPasswordHash = await bcrypt.hash(modPassword, 12);
 
   const targetEmail = `target_${uniq("u")}@example.com`;
-  const targetPasswordHash = await bcrypt.hash("password-1234", 12);
+  const targetPasswordHash = await bcrypt.hash("password1234", 12);
 
   await prisma.user.create({
     data: { email: adminEmail, passwordHash: adminPasswordHash, role: "admin", isBanned: false },

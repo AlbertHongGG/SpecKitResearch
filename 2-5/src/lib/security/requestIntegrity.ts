@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/errors/apiError";
+import { isOriginAllowed } from "@/lib/http/cors";
 
 export function enforceRequestIntegrity(req: Request) {
   const url = new URL(req.url);
@@ -11,7 +12,7 @@ export function enforceRequestIntegrity(req: Request) {
   const origin = req.headers.get("origin");
   if (origin) {
     const originUrl = new URL(origin);
-    if (originUrl.origin !== url.origin) {
+    if (originUrl.origin !== url.origin && !isOriginAllowed(originUrl.origin)) {
       throw ApiError.forbidden("Origin 不符");
     }
   }

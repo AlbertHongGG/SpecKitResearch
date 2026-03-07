@@ -35,7 +35,7 @@ export async function httpJson<T>(opts: HttpRequestOptions): Promise<T> {
   const baseUrl =
     import.meta.env.VITE_API_BASE_URL ??
     (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
-  const apiPrefix = import.meta.env.VITE_API_PREFIX ?? '';
+  const apiPrefix = import.meta.env.VITE_API_PREFIX ?? '/api';
   const method = opts.method ?? 'GET';
 
   const headers: Record<string, string> = {

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../shared/db/prisma.service';
 import { logResponsesExported } from '../shared/logging/events';
 
@@ -6,7 +6,7 @@ type ExportFormat = 'json' | 'csv';
 
 @Injectable()
 export class ExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async exportResponsesForOwner(ownerUserId: string, surveyId: string, format: ExportFormat) {
     const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
