@@ -1,0 +1,32 @@
+{
+  "name": "api-key-platform",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "pnpm -C backend dev",
+    "dev:frontend": "pnpm -C frontend dev",
+    "dev": "pnpm -C backend dev & pnpm -C frontend dev",
+    "build": "pnpm -C backend build && pnpm -C frontend build",
+    "test": "pnpm -C backend test && pnpm -C frontend test",
+    "lint": "pnpm -C backend lint && pnpm -C frontend lint",
+    "format": "prettier -w .",
+    "typecheck": "pnpm -C backend typecheck && pnpm -C frontend typecheck"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

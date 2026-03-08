@@ -1,0 +1,1411 @@
+openapi: 3.0.3
+info:
+  title: Payment Flow Simulation Platform API
+  version: 0.1.0
+  description: |
+    金流前置模擬平台（不連真實金流）API 契約。
+
+    - 認證：Session Cookie（cookieAuth）
+    - 寫操作：需 CSRF（Origin 檢查 + X-CSRF-Token）
+    - 錯誤回應：統一使用 ErrorResponse
+
+servers:
+  - url: http://localhost:3000
+    description: Local dev (example)
+
+tags:
+  - name: Auth
+  - name: Orders
+  - name: Catalog
+  - name: Pay
+  - name: Returns
+  - name: Webhooks
+  - name: WebhookEndpoints
+  - name: Admin
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            Set-Cookie:
+              description: Session cookie (HttpOnly)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      operationId: logout
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/session:
+    get:
+      tags: [Auth]
+      summary: Get current session
+      operationId: getCurrentSession
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders:
+    post:
+      tags: [Orders]
+      summary: Create simulation order
+      operationId: createOrder
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Orders]
+      summary: List orders
+      operationId: listOrders
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - in: query
+          name: payment_method_code
+          schema:
+            type: string
+        - in: query
+          name: simulation_scenario
+          schema:
+            $ref: '#/components/schemas/SimulationScenario'
+        - in: query
+          name: created_at_from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: created_at_to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Paged orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListOrdersResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{order_no}:
+    get:
+      tags: [Orders]
+      summary: Get order detail
+      operationId: getOrderDetail
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: order_no
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{order_no}/resend-webhook:
+    post:
+      tags: [Webhooks]
+      summary: Resend webhook (manual)
+      operationId: resendWebhook
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: order_no
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Resent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResendWebhookResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{order_no}/replay:
+    post:
+      tags: [Orders]
+      summary: Create replay run
+      operationId: createReplayRun
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: order_no
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReplayRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateReplayResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/pay/{order_no}/enter:
+    post:
+      tags: [Pay]
+      summary: Enter payment page (created→payment_pending)
+      operationId: enterPaymentPage
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: order_no
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Entered/No-op
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnterPayPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/pay/{order_no}/simulate:
+    post:
+      tags: [Pay]
+      summary: Simulate payment on payment page
+      operationId: simulatePayment
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: order_no
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Simulation started/accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulatePaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/returns/{return_log_id}/ack:
+    post:
+      tags: [Returns]
+      summary: (Optional) Receiver acknowledge return
+      operationId: acknowledgeReturn
+      description: |
+        可選：由接收端呼叫，用於除錯/觀測（不影響核心流程）。
+      parameters:
+        - in: path
+          name: return_log_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckReturnRequest'
+      responses:
+        '200':
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/returns/{return_log_id}/client-signal:
+    post:
+      tags: [Returns]
+      summary: Record client-side return dispatch signal
+      operationId: recordReturnClientSignal
+      description: |
+        由模擬器的 return-dispatch page 呼叫，用於記錄「已嘗試啟動導向/送出」的 best-effort 訊號。
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: return_log_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnClientSignalRequest'
+      responses:
+        '200':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/payment-methods:
+    get:
+      tags: [Catalog]
+      summary: List enabled payment methods
+      operationId: listEnabledPaymentMethods
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Enabled payment methods
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaymentMethod'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/scenario-templates:
+    get:
+      tags: [Catalog]
+      summary: List enabled scenario templates
+      operationId: listEnabledScenarioTemplates
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Enabled scenario templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ScenarioTemplate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/webhook-endpoints:
+    get:
+      tags: [WebhookEndpoints]
+      summary: List webhook endpoints for current user
+      operationId: listWebhookEndpoints
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Webhook endpoints
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookEndpoint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/webhook-endpoints/{endpoint_id}/rotate-secret:
+    post:
+      tags: [WebhookEndpoints]
+      summary: Rotate webhook signing secret
+      operationId: rotateWebhookEndpointSecret
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: endpoint_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateWebhookSecretResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/payment-methods:
+    get:
+      tags: [Admin]
+      summary: List payment methods
+      operationId: adminListPaymentMethods
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Payment methods
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaymentMethod'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Admin]
+      summary: Create payment method
+      operationId: adminCreatePaymentMethod
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentMethodRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/payment-methods/{code}:
+    patch:
+      tags: [Admin]
+      summary: Update payment method (enable/disable/sort/display)
+      operationId: adminUpdatePaymentMethod
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaymentMethodRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/scenario-templates:
+    get:
+      tags: [Admin]
+      summary: List scenario templates
+      operationId: adminListScenarioTemplates
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Scenario templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ScenarioTemplate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Admin]
+      summary: Create scenario template (usually seeded; optional)
+      operationId: adminCreateScenarioTemplate
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScenarioTemplateRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/scenario-templates/{scenario}:
+    patch:
+      tags: [Admin]
+      summary: Update scenario template
+      operationId: adminUpdateScenarioTemplate
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: scenario
+          required: true
+          schema:
+            $ref: '#/components/schemas/SimulationScenario'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScenarioTemplateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/system-settings:
+    get:
+      tags: [Admin]
+      summary: Get system settings
+      operationId: adminGetSystemSettings
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    patch:
+      tags: [Admin]
+      summary: Update system settings
+      operationId: adminUpdateSystemSettings
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSystemSettingsRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: paysim_session
+
+  parameters:
+    CsrfToken:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema:
+        type: string
+      description: 寫操作必填（配合 cookie 認證的 CSRF 防護）。
+
+  responses:
+    BadRequest:
+      description: Bad request (validation/illegal state)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Unauthorized (RBAC/IDOR)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict (already terminal / duplicate action)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: callback_url 必須為合法的 http/https URL
+            request_id:
+              type: string
+              description: 伺服器產生的 request/trace id（若有）
+            details:
+              description: 供除錯的結構化內容（不得含敏感資訊）
+              nullable: true
+
+    Role:
+      type: string
+      enum: [USER, ADMIN]
+
+    OrderStatus:
+      type: string
+      enum: [created, payment_pending, paid, failed, cancelled, timeout]
+
+    SimulationScenario:
+      type: string
+      enum: [success, failed, cancelled, timeout, delayed_success]
+
+    ReturnMethod:
+      type: string
+      enum: [query_string, post_form]
+
+    ReplayScope:
+      type: string
+      enum: [webhook_only, full_flow]
+
+    User:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+
+    SessionResponse:
+      type: object
+      required: [user, session_expires_at]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        session_expires_at:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    PaymentMethod:
+      type: object
+      required: [code, display_name, enabled, sort_order]
+      properties:
+        code:
+          type: string
+        display_name:
+          type: string
+        enabled:
+          type: boolean
+        sort_order:
+          type: integer
+
+    CreatePaymentMethodRequest:
+      type: object
+      required: [code, display_name]
+      properties:
+        code:
+          type: string
+        display_name:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+        sort_order:
+          type: integer
+          default: 0
+
+    UpdatePaymentMethodRequest:
+      type: object
+      description: 支援 enable/disable、排序與顯示名稱調整。
+      properties:
+        display_name:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+          nullable: true
+        sort_order:
+          type: integer
+          nullable: true
+
+    ScenarioTemplate:
+      type: object
+      required: [scenario, enabled, default_delay_sec]
+      properties:
+        scenario:
+          $ref: '#/components/schemas/SimulationScenario'
+        enabled:
+          type: boolean
+        default_delay_sec:
+          type: integer
+          minimum: 0
+        default_error_code:
+          type: string
+          nullable: true
+        default_error_message:
+          type: string
+          nullable: true
+
+    CreateScenarioTemplateRequest:
+      type: object
+      required: [scenario]
+      properties:
+        scenario:
+          $ref: '#/components/schemas/SimulationScenario'
+        enabled:
+          type: boolean
+          default: true
+        default_delay_sec:
+          type: integer
+          minimum: 0
+          default: 0
+        default_error_code:
+          type: string
+          nullable: true
+        default_error_message:
+          type: string
+          nullable: true
+
+    UpdateScenarioTemplateRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          nullable: true
+        default_delay_sec:
+          type: integer
+          minimum: 0
+          nullable: true
+        default_error_code:
+          type: string
+          nullable: true
+        default_error_message:
+          type: string
+          nullable: true
+
+    SystemSettings:
+      type: object
+      required:
+        - allowed_currencies
+        - default_return_method
+        - session_idle_sec
+        - session_absolute_sec
+        - webhook_secret_grace_sec_default
+      properties:
+        allowed_currencies:
+          type: array
+          items:
+            type: string
+          example: [TWD, USD, JPY]
+        default_return_method:
+          $ref: '#/components/schemas/ReturnMethod'
+        session_idle_sec:
+          type: integer
+          minimum: 60
+          example: 28800
+        session_absolute_sec:
+          type: integer
+          minimum: 60
+          example: 604800
+        webhook_secret_grace_sec_default:
+          type: integer
+          minimum: 0
+          example: 604800
+
+    UpdateSystemSettingsRequest:
+      type: object
+      properties:
+        allowed_currencies:
+          type: array
+          items:
+            type: string
+          nullable: true
+        default_return_method:
+          $ref: '#/components/schemas/ReturnMethod'
+        session_idle_sec:
+          type: integer
+          minimum: 60
+          nullable: true
+        session_absolute_sec:
+          type: integer
+          minimum: 60
+          nullable: true
+        webhook_secret_grace_sec_default:
+          type: integer
+          minimum: 0
+          nullable: true
+
+    WebhookEndpoint:
+      type: object
+      required: [id, url, grace_sec]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        grace_sec:
+          type: integer
+          minimum: 0
+        last_rotated_at:
+          type: string
+          format: date-time
+          nullable: true
+        previous_valid_until:
+          type: string
+          format: date-time
+          nullable: true
+        secret_masked:
+          type: string
+          description: UI 顯示用（例如 ****abcd），不可用於驗證。
+          nullable: true
+
+    RotateWebhookSecretResponse:
+      type: object
+      required: [ok, endpoint, signing_secret_current]
+      properties:
+        ok:
+          type: boolean
+        endpoint:
+          $ref: '#/components/schemas/WebhookEndpoint'
+        signing_secret_current:
+          type: string
+          description: rotate 後的新 secret（僅此回應回傳一次；之後只能 masked）。
+
+    ReturnClientSignalRequest:
+      type: object
+      properties:
+        signal:
+          type: string
+          enum: [navigation_started, form_submitted]
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+
+    Order:
+      type: object
+      required:
+        - id
+        - order_no
+        - status
+        - amount
+        - currency
+        - callback_url
+        - return_method
+        - payment_method_code
+        - simulation_scenario
+        - delay_sec
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_no:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        amount:
+          type: integer
+          minimum: 1
+        currency:
+          type: string
+          example: TWD
+        callback_url:
+          type: string
+          format: uri
+        return_method:
+          $ref: '#/components/schemas/ReturnMethod'
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+        webhook_endpoint_id:
+          type: string
+          format: uuid
+          nullable: true
+        payment_method_code:
+          type: string
+        simulation_scenario:
+          $ref: '#/components/schemas/SimulationScenario'
+        delay_sec:
+          type: integer
+          minimum: 0
+        webhook_delay_sec:
+          type: integer
+          minimum: 0
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    WebhookEndpointCreated:
+      type: object
+      required: [id, url, signing_secret_current]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        signing_secret_current:
+          type: string
+          description: 只在首次建立 endpoint 時回傳明文；之後只能 masked/不回傳。
+
+    CreateOrderRequest:
+      type: object
+      required:
+        - amount
+        - callback_url
+        - payment_method_code
+        - simulation_scenario
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+        currency:
+          type: string
+          default: TWD
+        callback_url:
+          type: string
+          format: uri
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+        payment_method_code:
+          type: string
+        simulation_scenario:
+          $ref: '#/components/schemas/SimulationScenario'
+        delay_sec:
+          type: integer
+          minimum: 0
+          default: 0
+        webhook_delay_sec:
+          type: integer
+          minimum: 0
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    CreateOrderResponse:
+      type: object
+      required: [order, payment_page_url]
+      properties:
+        order:
+          $ref: '#/components/schemas/Order'
+        payment_page_url:
+          type: string
+          example: /pay/ORD_123
+        webhook_endpoint_created:
+          $ref: '#/components/schemas/WebhookEndpointCreated'
+
+    ListOrdersResponse:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        page:
+          type: integer
+        page_size:
+          type: integer
+          example: 20
+        total:
+          type: integer
+
+    OrderStateEvent:
+      type: object
+      required: [id, from_status, to_status, trigger, actor_type, occurred_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        from_status:
+          $ref: '#/components/schemas/OrderStatus'
+        to_status:
+          $ref: '#/components/schemas/OrderStatus'
+        trigger:
+          type: string
+        actor_type:
+          type: string
+          enum: [user, system, admin]
+        occurred_at:
+          type: string
+          format: date-time
+        meta:
+          nullable: true
+
+    ReturnLog:
+      type: object
+      required: [id, callback_url, return_method, payload, success, initiated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        replay_run_id:
+          type: string
+          format: uuid
+          nullable: true
+        callback_url:
+          type: string
+          format: uri
+        return_method:
+          $ref: '#/components/schemas/ReturnMethod'
+        payload:
+          type: object
+          additionalProperties: true
+        success:
+          type: boolean
+        initiated_at:
+          type: string
+          format: date-time
+        client_signal_at:
+          type: string
+          format: date-time
+          nullable: true
+        ack_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_summary:
+          type: string
+          nullable: true
+
+    WebhookLog:
+      type: object
+      required: [id, url, event_id, signature_timestamp, signature_header, payload, sent_at, success]
+      properties:
+        id:
+          type: string
+          format: uuid
+        replay_run_id:
+          type: string
+          format: uuid
+          nullable: true
+        url:
+          type: string
+          format: uri
+        event_id:
+          type: string
+          format: uuid
+        signature_timestamp:
+          type: integer
+        signature_header:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        sent_at:
+          type: string
+          format: date-time
+        response_status:
+          type: integer
+          nullable: true
+        response_body_excerpt:
+          type: string
+          nullable: true
+        success:
+          type: boolean
+        error_summary:
+          type: string
+          nullable: true
+
+    ReplayRun:
+      type: object
+      required: [id, scope, started_at, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          $ref: '#/components/schemas/ReplayScope'
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+
+    AuditLog:
+      type: object
+      required: [id, action, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        target_type:
+          type: string
+          nullable: true
+        target_id:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+          nullable: true
+        meta:
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    OrderDetailResponse:
+      type: object
+      required: [order, state_events, return_logs, webhook_logs, replay_runs, audit_logs]
+      properties:
+        order:
+          $ref: '#/components/schemas/Order'
+        state_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderStateEvent'
+        return_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReturnLog'
+        webhook_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookLog'
+        replay_runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplayRun'
+        audit_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+
+    ResendWebhookResponse:
+      type: object
+      required: [ok, webhook_log_id]
+      properties:
+        ok:
+          type: boolean
+        webhook_log_id:
+          type: string
+          format: uuid
+
+    CreateReplayRequest:
+      type: object
+      required: [scope]
+      properties:
+        scope:
+          $ref: '#/components/schemas/ReplayScope'
+
+    CreateReplayResponse:
+      type: object
+      required: [ok, replay_run_id]
+      properties:
+        ok:
+          type: boolean
+        replay_run_id:
+          type: string
+          format: uuid
+
+    SimulatePaymentResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        order_no:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        return_dispatch_url:
+          type: string
+          description: 完成後導向的平台頁面（執行 return redirect/form submit）
+          example: /complete/ORD_123
+
+    EnterPayPageResponse:
+      type: object
+      required: [ok, status]
+      properties:
+        ok:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+
+    AckReturnRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          nullable: true

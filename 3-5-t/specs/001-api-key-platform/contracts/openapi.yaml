@@ -1,0 +1,1461 @@
+openapi: 3.1.0
+info:
+  title: API 平台與金鑰管理系統
+  version: 0.1.0
+  description: |
+    本 OpenAPI 契約描述 Web 後台（session + RBAC）、API Key 管理、Admin 目錄管理、
+    Usage/Audit 查詢，以及 Gateway（/gateway）之平台層拒絕語意。
+
+servers:
+  - url: http://localhost:3001
+    description: Backend（NestJS）
+
+tags:
+  - name: Auth
+  - name: Keys
+  - name: Docs
+  - name: Admin
+  - name: Gateway
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: Web Session cookie（httpOnly）。
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API_KEY
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            requestId:
+              type: string
+              description: 對應 x-request-id（若有）。
+            code:
+              type: string
+              description: 內部錯誤代碼（給除錯/告警用）。
+              examples: [UNAUTHORIZED, FORBIDDEN, RATE_LIMITED, NOT_FOUND, UPSTREAM_ERROR, INTERNAL_ERROR]
+            message:
+              type: string
+              description: 給使用者的可理解訊息（不得洩漏敏感資訊）。
+
+    User:
+      type: object
+      required: [id, email, role, status]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [developer, admin]
+        status:
+          type: string
+          enum: [active, disabled]
+
+    SessionResponse:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/User'
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    RegisterResponse:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+    ApiScopeSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    RateLimitPolicy:
+      type: object
+      required: [default_per_minute, default_per_hour, max_per_minute, max_per_hour]
+      properties:
+        default_per_minute:
+          type: integer
+          minimum: 0
+        default_per_hour:
+          type: integer
+          minimum: 0
+        max_per_minute:
+          type: integer
+          minimum: 0
+        max_per_hour:
+          type: integer
+          minimum: 0
+
+    ApiKeyStatus:
+      type: string
+      enum: [active, revoked, blocked]
+
+    ApiKeySummary:
+      type: object
+      required: [id, name, status, scopes, created_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ApiKeyStatus'
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+          minimum: 0
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+          minimum: 0
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        replaced_by_key_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CreateApiKeyRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+          minimum: 0
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+          minimum: 0
+
+    CreateApiKeyResponse:
+      type: object
+      required: [api_key, plain_key]
+      properties:
+        api_key:
+          $ref: '#/components/schemas/ApiKeySummary'
+        plain_key:
+          type: string
+          description: 只在建立成功時回傳一次；後續不可再取得。
+
+    UpdateApiKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        scopes:
+          type: array
+          nullable: true
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+          minimum: 0
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+          minimum: 0
+
+    KeysIndexResponse:
+      type: object
+      required: [keys, limits, scopes]
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeySummary'
+        limits:
+          $ref: '#/components/schemas/RateLimitPolicy'
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiScopeSummary'
+
+    UsageLogItem:
+      type: object
+      required: [occurred_at, http_method, path, status_code, response_time_ms]
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          nullable: true
+        endpoint_id:
+          type: string
+          nullable: true
+        http_method:
+          type: string
+        path:
+          type: string
+        status_code:
+          type: integer
+        response_time_ms:
+          type: integer
+        error_code:
+          type: string
+          nullable: true
+
+    UsageLogPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageLogItem'
+        next_cursor:
+          type: string
+          nullable: true
+
+    ApiService:
+      type: object
+      required: [id, name, status, upstream_key]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        upstream_key:
+          type: string
+
+    ApiEndpoint:
+      type: object
+      required: [id, service_id, http_method, path_pattern, status]
+      properties:
+        id:
+          type: string
+        service_id:
+          type: string
+        http_method:
+          type: string
+        path_pattern:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    DocsEndpoint:
+      type: object
+      required: [http_method, path_pattern, required_scopes]
+      properties:
+        http_method:
+          type: string
+        path_pattern:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        required_scopes:
+          type: array
+          items:
+            type: string
+
+    DocsService:
+      type: object
+      required: [name, endpoints]
+      properties:
+        name:
+          type: string
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocsEndpoint'
+
+    DocsResponse:
+      type: object
+      required: [services]
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocsService'
+
+    AuditLogItem:
+      type: object
+      required: [occurred_at, action]
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          nullable: true
+        actor_user_id:
+          type: string
+          nullable: true
+        action:
+          type: string
+        target_type:
+          type: string
+          nullable: true
+        target_id:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    AuditLogPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogItem'
+        next_cursor:
+          type: string
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: 未授權（缺少/無效 session 或 API key）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing_or_invalid_credentials:
+              summary: 缺少或無效憑證
+              value:
+                error:
+                  requestId: req_example
+                  code: UNAUTHORIZED
+                  message: Unauthorized
+    Forbidden:
+      description: 權限不足（role 或 scope 不符）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            insufficient_permissions:
+              summary: 權限不足
+              value:
+                error:
+                  requestId: req_example
+                  code: FORBIDDEN
+                  message: Forbidden
+    RateLimited:
+      description: 超過 rate limit。
+      headers:
+        Retry-After:
+          description: 建議等待秒數（或 HTTP-date）。
+          schema:
+            type: string
+          example: '5'
+        RateLimit-Limit:
+          schema:
+            type: string
+          example: '60'
+        RateLimit-Remaining:
+          schema:
+            type: string
+          example: '0'
+        RateLimit-Reset:
+          schema:
+            type: string
+          example: '1710000000'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rate_limited:
+              summary: 超限
+              value:
+                error:
+                  requestId: req_example
+                  code: RATE_LIMITED
+                  message: Too many requests
+    NotFound:
+      description: 找不到資源（或找不到 endpoint）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            not_found:
+              summary: 資源不存在
+              value:
+                error:
+                  requestId: req_example
+                  code: NOT_FOUND
+                  message: Not found
+    InternalError:
+      description: 平台內部錯誤。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internal_error:
+              summary: 內部錯誤
+              value:
+                error:
+                  requestId: req_example
+                  code: INTERNAL_ERROR
+                  message: Internal server error
+
+paths:
+  /register:
+    post:
+      tags: [Auth]
+      summary: 註冊（不自動登入）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 註冊成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/InternalError'
+
+  /login:
+    post:
+      tags: [Auth]
+      summary: 登入並建立 Web Session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登入成功（會設定 sid cookie）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout:
+    post:
+      tags: [Auth]
+      summary: 登出並使 session 失效
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: 登出成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /session:
+    get:
+      tags: [Auth]
+      summary: 取得目前 session 狀態
+      responses:
+        '200':
+          description: session 狀態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+
+  /keys:
+    get:
+      tags: [Keys]
+      summary: 取得目前使用者的 keys + scopes + rate limit policy
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: keys 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeysIndexResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Keys]
+      summary: 建立 API key（plain_key 只回傳一次）
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: 建立成功（含 plain_key）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /keys/{keyId}:
+    patch:
+      tags: [Keys]
+      summary: 更新 key 設定（僅 active）
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApiKeyRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [api_key]
+                properties:
+                  api_key:
+                    $ref: '#/components/schemas/ApiKeySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /keys/{keyId}/revoke:
+    post:
+      tags: [Keys]
+      summary: 撤銷 key（立即失效）
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 撤銷成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [api_key]
+                properties:
+                  api_key:
+                    $ref: '#/components/schemas/ApiKeySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /keys/{keyId}/rotate:
+    post:
+      tags: [Keys]
+      summary: 設定 rotation 關聯（回填 replaced_by_key_id）
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_key_id]
+              properties:
+                new_key_id:
+                  type: string
+      responses:
+        '200':
+          description: 設定成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [api_key]
+                properties:
+                  api_key:
+                    $ref: '#/components/schemas/ApiKeySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /keys/{keyId}/usage:
+    get:
+      tags: [Keys]
+      summary: 查詢單一 key 的 usage logs
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: status_code
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: endpoint
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageLogPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /docs:
+    get:
+      tags: [Docs]
+      summary: 顯示啟用中的 service/endpoint 與 scope 標示
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: docs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/services:
+    post:
+      tags: [Admin]
+      summary: 建立 ApiService
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, upstream_key]
+              properties:
+                name:
+                  type: string
+                upstream_key:
+                  type: string
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service]
+                properties:
+                  service:
+                    $ref: '#/components/schemas/ApiService'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/services/{serviceId}:
+    patch:
+      tags: [Admin]
+      summary: 更新 ApiService
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                upstream_key:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service]
+                properties:
+                  service:
+                    $ref: '#/components/schemas/ApiService'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/services/{serviceId}/disable:
+    post:
+      tags: [Admin]
+      summary: 停用 ApiService
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 停用成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/services/{serviceId}/endpoints:
+    post:
+      tags: [Admin]
+      summary: 建立 ApiEndpoint
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [http_method, path_pattern]
+              properties:
+                http_method:
+                  type: string
+                path_pattern:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [endpoint]
+                properties:
+                  endpoint:
+                    $ref: '#/components/schemas/ApiEndpoint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/endpoints/{endpointId}:
+    patch:
+      tags: [Admin]
+      summary: 更新 ApiEndpoint
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: endpointId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                http_method:
+                  type: string
+                path_pattern:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [endpoint]
+                properties:
+                  endpoint:
+                    $ref: '#/components/schemas/ApiEndpoint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/endpoints/{endpointId}/toggle:
+    post:
+      tags: [Admin]
+      summary: 切換 ApiEndpoint 啟用/停用
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: endpointId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '204':
+          description: 切換成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/scopes:
+    post:
+      tags: [Admin]
+      summary: 建立 ApiScope
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scope]
+                properties:
+                  scope:
+                    $ref: '#/components/schemas/ApiScopeSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/scopes/{scopeId}:
+    patch:
+      tags: [Admin]
+      summary: 更新 ApiScope
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: scopeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scope]
+                properties:
+                  scope:
+                    $ref: '#/components/schemas/ApiScopeSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/scope-rules:
+    post:
+      tags: [Admin]
+      summary: 建立 scope ↔ endpoint allow rule
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint_id, scope_id]
+              properties:
+                endpoint_id:
+                  type: string
+                scope_id:
+                  type: string
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rule_id]
+                properties:
+                  rule_id:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/scope-rules/{ruleId}:
+    delete:
+      tags: [Admin]
+      summary: 刪除 scope rule
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 刪除成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/rate-limits:
+    patch:
+      tags: [Admin]
+      summary: 更新全域 rate limit 預設/上限
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateLimitPolicy'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/keys/{keyId}/block:
+    post:
+      tags: [Admin]
+      summary: 封鎖任意 key
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 封鎖成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/keys/{keyId}/revoke:
+    post:
+      tags: [Admin]
+      summary: 撤銷任意 key
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 撤銷成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{userId}/disable:
+    post:
+      tags: [Admin]
+      summary: 停用使用者（使其後續登入失敗且 session/keys 失效）
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 停用成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/usage:
+    get:
+      tags: [Admin]
+      summary: 查詢全站 usage（含 401/403/429/5xx）
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: status_code
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageLogPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: 查詢 audit logs
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /gateway/{service}/{proxyPath}:
+    get:
+      tags: [Gateway]
+      summary: Gateway proxy（GET）
+      description: |
+        串流透傳 upstream；本操作的狀態碼可能為 upstream 回應，或平台拒絕（401/403/429/404/5xx）。
+        注意：`proxyPath` 在實作中是 greedy（可包含 `/`），此處僅作契約性描述。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: upstream 透傳回應（此處不限制 content-type）
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/InternalError'
+
+    head:
+      tags: [Gateway]
+      summary: Gateway proxy（HEAD）
+      description: |
+        串流透傳 upstream（HEAD）；本操作的狀態碼可能為 upstream 回應，或平台拒絕（401/403/429/404/5xx）。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: upstream 透傳回應（HEAD）
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Gateway]
+      summary: Gateway proxy（POST）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyPath
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: upstream 透傳回應
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags: [Gateway]
+      summary: Gateway proxy（PUT）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyPath
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: upstream 透傳回應
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags: [Gateway]
+      summary: Gateway proxy（PATCH）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyPath
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: upstream 透傳回應
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Gateway]
+      summary: Gateway proxy（DELETE）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: upstream 透傳回應
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/InternalError'

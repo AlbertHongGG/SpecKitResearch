@@ -1,0 +1,597 @@
+openapi: 3.1.0
+info:
+  title: Subscription & Billing API
+  version: 1.0.0
+  description: REST contracts for SaaS subscription, billing, usage, entitlement, and admin governance.
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /auth/login:
+    post:
+      summary: Login and establish session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /app/summary:
+    get:
+      summary: Get app dashboard summary for current organization scope
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Summary payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /subscriptions/current:
+    get:
+      summary: Get current subscription and pending change
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current subscription snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /subscriptions/upgrade:
+    post:
+      summary: Upgrade plan immediately (Org Admin)
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpgradeRequest'
+      responses:
+        '200':
+          description: Upgrade applied and proration invoice opened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpgradeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /subscriptions/downgrade:
+    post:
+      summary: Schedule downgrade for next billing cycle (Org Admin)
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DowngradeRequest'
+      responses:
+        '200':
+          description: Pending downgrade created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /entitlements:
+    get:
+      summary: Resolve entitlement decisions (backend SSOT)
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entitlement matrix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /usage:
+    get:
+      summary: Get usage records for current billing period
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usage records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /invoices:
+    get:
+      summary: List invoices for organization
+      parameters:
+        - in: header
+          name: X-Organization-Id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invoice list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/plans:
+    get:
+      summary: List plans (Platform Admin)
+      responses:
+        '200':
+          description: Plan list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Plan'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create plan (Platform Admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanUpsertRequest'
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /admin/overrides:
+    post:
+      summary: Force organization status (Platform Admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOverrideRequest'
+      responses:
+        '200':
+          description: Override applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverride'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /webhooks/payments:
+    post:
+      summary: Payment provider callback (idempotent)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentWebhookEvent'
+      responses:
+        '202':
+          description: Event accepted (or duplicate acknowledged)
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Version conflict or duplicate operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+          examples: [AUTH_UNAUTHORIZED, RBAC_FORBIDDEN, IDP_EVENT_DUPLICATE]
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        traceId:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    AuthUserResponse:
+      type: object
+      required: [userId, email, isPlatformAdmin, organizationIds]
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        isPlatformAdmin:
+          type: boolean
+        organizationIds:
+          type: array
+          items:
+            type: string
+    Plan:
+      type: object
+      required: [id, name, billingCycle, priceCents, currency, isActive, limits, features]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        priceCents:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+        isActive:
+          type: boolean
+        limits:
+          type: object
+          additionalProperties: true
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+    PlanUpsertRequest:
+      allOf:
+        - $ref: '#/components/schemas/Plan'
+    SubscriptionResponse:
+      type: object
+      required: [id, organizationId, status, billingCycle, plan, currentPeriodStart, currentPeriodEnd]
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        status:
+          type: string
+          enum: [Trial, Active, PastDue, Suspended, Canceled, Expired]
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        plan:
+          $ref: '#/components/schemas/Plan'
+        currentPeriodStart:
+          type: string
+          format: date-time
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        pendingPlanId:
+          type: string
+          nullable: true
+        pendingEffectiveAt:
+          type: string
+          format: date-time
+          nullable: true
+        gracePeriodEndAt:
+          type: string
+          format: date-time
+          nullable: true
+        effectiveStatus:
+          type: string
+    UpgradeRequest:
+      type: object
+      required: [targetPlanId, billingCycle]
+      properties:
+        targetPlanId:
+          type: string
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        idempotencyKey:
+          type: string
+    UpgradeResponse:
+      type: object
+      required: [subscription, prorationInvoice]
+      properties:
+        subscription:
+          $ref: '#/components/schemas/SubscriptionResponse'
+        prorationInvoice:
+          $ref: '#/components/schemas/Invoice'
+    DowngradeRequest:
+      type: object
+      required: [targetPlanId, billingCycle]
+      properties:
+        targetPlanId:
+          type: string
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        idempotencyKey:
+          type: string
+    UsageResponse:
+      type: object
+      required: [periodStart, periodEnd, meters]
+      properties:
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        meters:
+          type: array
+          items:
+            type: object
+            required: [meterCode, value, limit, strategy]
+            properties:
+              meterCode:
+                type: string
+              value:
+                type: number
+              limit:
+                type: number
+              strategy:
+                type: string
+                enum: [Block, Throttle, Overage]
+    Invoice:
+      type: object
+      required: [id, status, totalCents, currency, billingPeriodStart, billingPeriodEnd]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Open, Paid, Failed, Voided]
+        totalCents:
+          type: integer
+        currency:
+          type: string
+        billingPeriodStart:
+          type: string
+          format: date-time
+        billingPeriodEnd:
+          type: string
+          format: date-time
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLineItem'
+    InvoiceLineItem:
+      type: object
+      required: [type, description, amountCents]
+      properties:
+        type:
+          type: string
+          enum: [RECURRING, PRORATION, OVERAGE, TAX]
+        description:
+          type: string
+        amountCents:
+          type: integer
+        quantity:
+          type: number
+          nullable: true
+        meterCode:
+          type: string
+          nullable: true
+    InvoiceListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+    EntitlementResponse:
+      type: object
+      required: [effectiveStatus, decisions, evaluatedAt]
+      properties:
+        effectiveStatus:
+          type: string
+        reasonCodes:
+          type: array
+          items:
+            type: string
+        decisions:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              allowed:
+                type: boolean
+              reasonCode:
+                type: string
+              currentUsage:
+                type: number
+              limit:
+                type: number
+        evaluatedAt:
+          type: string
+          format: date-time
+    AdminOverrideRequest:
+      type: object
+      required: [organizationId, forcedStatus, reason]
+      properties:
+        organizationId:
+          type: string
+        forcedStatus:
+          type: string
+          enum: [Suspended, Expired]
+        reason:
+          type: string
+          minLength: 5
+    AdminOverride:
+      type: object
+      required: [organizationId, forcedStatus, reason, createdByUserId, createdAt]
+      properties:
+        organizationId:
+          type: string
+        forcedStatus:
+          type: string
+          enum: [NONE, Suspended, Expired]
+        reason:
+          type: string
+        createdByUserId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+    AppSummaryResponse:
+      type: object
+      required: [subscription, usageSummary, recentInvoices, risks]
+      properties:
+        subscription:
+          $ref: '#/components/schemas/SubscriptionResponse'
+        usageSummary:
+          $ref: '#/components/schemas/UsageResponse'
+        recentInvoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+        risks:
+          type: array
+          items:
+            type: string
+    PaymentWebhookEvent:
+      type: object
+      required: [provider, providerAccountId, externalEventId, occurredAt, invoiceId, result]
+      properties:
+        provider:
+          type: string
+        providerAccountId:
+          type: string
+        externalEventId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        invoiceId:
+          type: string
+        result:
+          type: string
+          enum: [succeeded, failed]
+        amountCents:
+          type: integer
+        payload:
+          type: object
+          additionalProperties: true

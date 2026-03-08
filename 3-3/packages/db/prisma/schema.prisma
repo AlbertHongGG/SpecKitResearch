@@ -1,0 +1,333 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationRole {
+  END_USER
+  ORG_ADMIN
+}
+
+enum MembershipStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+}
+
+enum SubscriptionStatus {
+  Trial
+  Active
+  PastDue
+  Suspended
+  Canceled
+  Expired
+}
+
+enum InvoiceStatus {
+  Draft
+  Open
+  Paid
+  Failed
+  Voided
+}
+
+enum InvoiceKind {
+  Recurring
+  Proration
+}
+
+enum InvoiceLineItemType {
+  RECURRING
+  PRORATION
+  OVERAGE
+  TAX
+}
+
+enum ForcedStatus {
+  NONE
+  Suspended
+  Expired
+}
+
+enum ActorRoleContext {
+  GUEST
+  END_USER
+  ORG_ADMIN
+  PLATFORM_ADMIN
+  SYSTEM
+}
+
+enum MeterCode {
+  API_CALLS
+  STORAGE_BYTES
+  USER_COUNT
+  PROJECT_COUNT
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  isPlatformAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  lastLoginAt     DateTime?
+
+  memberships OrganizationMember[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+  overrides   AdminOverride[] @relation("OverrideCreatedBy")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  members        OrganizationMember[]
+  subscriptions  Subscription[]
+  invoices       Invoice[]
+  paymentMethods PaymentMethod[]
+  overrides      AdminOverride[]
+  usageEvents    UsageEvent[]
+  usageRollups   UsageRollup[]
+  auditLogs      AuditLog[]
+}
+
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([userId, organizationId])
+}
+
+model Plan {
+  id          String      @id @default(cuid())
+  name        String
+  billingCycle BillingCycle
+  priceCents  Int
+  currency    String
+  isActive    Boolean     @default(true)
+  limits      Json
+  features    Json
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  subscriptions Subscription[]
+  pendingSubscriptions Subscription[] @relation("PendingPlan")
+
+  @@index([isActive])
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  organizationId    String
+  planId            String
+  status            SubscriptionStatus
+  billingCycle      BillingCycle
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndAt        DateTime?
+  canceledAt        DateTime?
+  expiredAt         DateTime?
+  pendingPlanId     String?
+  pendingEffectiveAt DateTime?
+  gracePeriodEndAt  DateTime?
+  version           Int                @default(0)
+  // nullable: allow many historical rows (NULL), but only one current row (TRUE)
+  isCurrent         Boolean?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  plan         Plan         @relation(fields: [planId], references: [id])
+  pendingPlan  Plan?        @relation("PendingPlan", fields: [pendingPlanId], references: [id])
+
+  invoices     Invoice[]
+  usageEvents  UsageEvent[]
+  usageRollups UsageRollup[]
+
+  @@unique([organizationId, isCurrent])
+  @@index([organizationId])
+}
+
+model Invoice {
+  id                String       @id @default(cuid())
+  organizationId    String
+  subscriptionId    String
+  kind              InvoiceKind
+  status            InvoiceStatus
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  totalCents        Int
+  currency          String
+  dueAt             DateTime?
+  paidAt            DateTime?
+  failedAt          DateTime?
+  version           Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  lineItems    InvoiceLineItem[]
+
+  @@unique([subscriptionId, billingPeriodStart, billingPeriodEnd, kind])
+  @@index([organizationId, createdAt])
+}
+
+model InvoiceLineItem {
+  id          String              @id @default(cuid())
+  invoiceId   String
+  type        InvoiceLineItemType
+  description String
+  amountCents Int
+  quantity    Int?
+  meterCode   MeterCode?
+  createdAt   DateTime            @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model PaymentMethod {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  provider               String
+  providerPaymentMethodRef String
+  isDefault              Boolean?
+  createdAt              DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, isDefault])
+}
+
+model AdminOverride {
+  id             String      @id @default(cuid())
+  organizationId String
+  forcedStatus   ForcedStatus
+  reason         String
+  createdByUserId String
+  createdAt      DateTime    @default(now())
+  revokedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation("OverrideCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([organizationId, revokedAt, createdAt])
+}
+
+model AuditLog {
+  id              String          @id @default(cuid())
+  actorUserId     String?
+  actorRoleContext ActorRoleContext
+  organizationId  String?
+  action          String
+  targetType      String
+  targetId        String?
+  payload         Json
+  createdAt       DateTime        @default(now())
+
+  actorUser     User?         @relation(fields: [actorUserId], references: [id])
+  organization  Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model Session {
+  id          String   @id
+  userId      String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  activeOrgId String?
+  csrfTokenHash String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model WebhookEventInbox {
+  id             String            @id @default(cuid())
+  provider       String
+  providerEventId String
+  payload        Json
+  status         WebhookEventStatus @default(RECEIVED)
+  receivedAt     DateTime          @default(now())
+  processedAt    DateTime?
+  error          String?
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+}
+
+model JobLock {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  lockedAt  DateTime @default(now())
+  lockedBy  String
+  expiresAt DateTime
+}
+
+model UsageEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  meterCode      MeterCode
+  occurredAt     DateTime
+  periodStart    DateTime
+  delta          Int?
+  value          Int?
+  idempotencyKey String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, periodStart, meterCode, occurredAt])
+}
+
+model UsageRollup {
+  id             String   @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  meterCode      MeterCode
+  periodStart    DateTime
+  periodEnd      DateTime
+  sumValue       Int      @default(0)
+  maxValue       Int      @default(0)
+  lastValue      Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@unique([organizationId, subscriptionId, meterCode, periodStart])
+  @@index([organizationId, periodStart])
+}

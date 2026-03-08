@@ -1,0 +1,36 @@
+{
+  "name": "payment-flow-sim",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/*",
+    "tools/*",
+    "tests/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm -w backend run dev\" \"npm -w frontend run dev\"",
+    "dev:backend": "npm -w backend run dev",
+    "dev:frontend": "npm -w frontend run dev",
+    "dev:worker": "npm -w backend run worker:dev",
+    "dev:receiver": "npm -w tools/receiver run dev",
+    "build": "npm -w @app/contracts run build && npm -w @app/backend run build && npm -w @app/frontend run build",
+    "lint": "npm -ws run lint --if-present",
+    "format": "prettier . --write",
+    "test": "npm -ws run test --if-present",
+    "test:unit": "npm -ws run test:unit --if-present",
+    "test:integration": "npm -ws run test:integration --if-present",
+    "test:e2e": "npm -w tests/e2e run test",
+    "prisma:migrate": "npm -w backend run prisma:migrate",
+    "prisma:seed": "npm -w backend run prisma:seed"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.28.0",
+    "@typescript-eslint/parser": "^8.28.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  }
+}

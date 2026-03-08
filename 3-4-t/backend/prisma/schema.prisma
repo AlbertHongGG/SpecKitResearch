@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  role          String
+  created_at    DateTime @default(now())
+  last_login_at DateTime?
+
+  sessions Session[]
+  orders   Order[]
+
+  @@index([role])
+}
+
+model Session {
+  sid          String   @id
+  user_id      String
+  created_at   DateTime @default(now())
+  last_seen_at DateTime @default(now())
+  expires_at   DateTime
+  revoked_at   DateTime?
+  meta         Json?
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@index([revoked_at])
+  @@index([last_seen_at])
+}
+
+model PaymentMethod {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  display_name String
+  enabled      Boolean  @default(true)
+  sort_order   Int      @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([enabled, sort_order])
+}
+
+model SimulationScenarioTemplate {
+  id                    String   @id @default(cuid())
+  type                  String
+  default_delay_sec     Int      @default(0)
+  default_error_code    String?
+  default_error_message String?
+  enabled               Boolean  @default(true)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  @@index([type, enabled])
+}
+
+model Order {
+  id                       String   @id @default(cuid())
+  order_no                 String   @unique
+  user_id                  String
+  amount                   Int
+  currency                 String   @default("TWD")
+  status                   String
+  callback_url             String
+  return_method            String
+  webhook_url              String?
+  payment_method_code      String
+  simulation_scenario_type String
+  delay_sec                Int      @default(0)
+  webhook_delay_sec         Int?
+  error_code               String?
+  error_message            String?
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+  completed_at             DateTime?
+
+  user User @relation(fields: [user_id], references: [id])
+  payment_method PaymentMethod @relation(fields: [payment_method_code], references: [code])
+
+  state_events  OrderStateEvent[]
+  return_logs   ReturnLog[]
+  webhook_logs  WebhookLog[]
+  webhook_jobs  WebhookJob[]
+  replay_runs   ReplayRun[]
+
+  @@index([user_id, created_at])
+  @@index([status, created_at])
+  @@index([payment_method_code, created_at])
+  @@index([simulation_scenario_type, created_at])
+  @@index([completed_at])
+}
+
+model OrderStateEvent {
+  id            String   @id @default(cuid())
+  order_id      String
+  from_status   String?
+  to_status     String
+  trigger       String
+  actor_type    String
+  actor_user_id String?
+  occurred_at   DateTime @default(now())
+  meta          Json?
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@index([order_id, occurred_at])
+}
+
+model ReturnLog {
+  id            String   @id @default(cuid())
+  order_id      String
+  replay_run_id String?
+  delivery_method String
+  callback_url  String
+  payload       Json
+  dispatched_at DateTime @default(now())
+  success       Boolean
+  error_message String?
+
+  order Order @relation(fields: [order_id], references: [id])
+  replay_run ReplayRun? @relation(fields: [replay_run_id], references: [id])
+
+  @@index([order_id, dispatched_at])
+  @@index([replay_run_id, dispatched_at])
+}
+
+model WebhookLog {
+  id                  String   @id @default(cuid())
+  order_id            String
+  replay_run_id       String?
+  request_url         String
+  request_headers     Json
+  payload             Json
+  sent_at             DateTime @default(now())
+  response_status     Int?
+  response_body_excerpt String?
+  success             Boolean
+
+  order Order @relation(fields: [order_id], references: [id])
+  replay_run ReplayRun? @relation(fields: [replay_run_id], references: [id])
+
+  @@index([order_id, sent_at])
+  @@index([replay_run_id, sent_at])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  actor_type    String
+  actor_user_id String?
+  action        String
+  target_type   String
+  target_id     String?
+  meta          Json?
+  occurred_at   DateTime @default(now())
+
+  @@index([actor_type, occurred_at])
+  @@index([action, occurred_at])
+}
+
+model ReplayRun {
+  id          String   @id @default(cuid())
+  order_id    String
+  scope       String
+  requested_by_user_id String?
+  created_at  DateTime @default(now())
+  status      String   @default("created")
+  error_message String?
+
+  order Order @relation(fields: [order_id], references: [id])
+  return_logs ReturnLog[]
+  webhook_logs WebhookLog[]
+
+  @@index([order_id, created_at])
+}
+
+model WebhookJob {
+  id            String   @id @default(cuid())
+  order_id      String
+  replay_run_id String?
+  run_at        DateTime
+  status        String   @default("queued")
+  attempt_count Int      @default(0)
+  max_attempts  Int      @default(8)
+  last_error    String?
+  lock_expires_at DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@index([status, run_at])
+  @@index([status, updated_at])
+  @@index([lock_expires_at])
+  @@index([order_id, created_at])
+}
+
+model SystemSetting {
+  key        String   @id
+  value_json Json
+  updated_at DateTime @updatedAt
+}
+
+model WebhookSigningSecret {
+  id          String   @id @default(cuid())
+  label       String
+  secret_hash String
+  status      String   @default("active")
+  created_at  DateTime @default(now())
+  retired_at  DateTime?
+
+  @@index([status, created_at])
+}

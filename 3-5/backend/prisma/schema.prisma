@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  developer
+  admin
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum ResourceStatus {
+  active
+  disabled
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+}
+
+enum ApiKeyStatus {
+  active
+  revoked
+  blocked
+}
+
+enum ScopeRuleEffect {
+  allow
+}
+
+enum AuditActorRole {
+  developer
+  admin
+  system
+}
+
+enum BlockedIpStatus {
+  active
+  inactive
+}
+
+enum RateLimitWindow {
+  minute
+  hour
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  role         UserRole
+  status       UserStatus
+  createdAt    DateTime      @default(now())
+  lastLoginAt  DateTime?
+
+  sessions UserSession[]
+  apiKeys  ApiKey[]
+  auditLog AuditLog[]
+}
+
+model UserSession {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+
+  @@index([userId])
+}
+
+model ApiService {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String
+  status      ResourceStatus
+  createdAt   DateTime       @default(now())
+
+  endpoints ApiEndpoint[]
+}
+
+model ApiEndpoint {
+  id          String         @id @default(uuid())
+  serviceId   String
+  service     ApiService     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  method      HttpMethod
+  path        String
+  description String?
+  status      ResourceStatus
+
+  scopeRules ApiScopeRule[]
+  usageLogs  ApiUsageLog[]
+
+  @@unique([serviceId, method, path])
+  @@index([serviceId])
+}
+
+model ApiScope {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String
+  createdAt   DateTime       @default(now())
+
+  rules   ApiScopeRule[]
+  apiKeys ApiKeyScope[]
+}
+
+model ApiScopeRule {
+  id         String          @id @default(uuid())
+  scopeId    String
+  endpointId String
+  effect     ScopeRuleEffect
+
+  scope    ApiScope    @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+  endpoint ApiEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@unique([scopeId, endpointId])
+  @@index([endpointId])
+}
+
+model ApiKey {
+  id                String       @id @default(uuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicId          String       @unique
+  name              String
+  hash              String
+  status            ApiKeyStatus
+  expiresAt         DateTime?
+  rateLimitPerMinute Int?
+  rateLimitPerHour   Int?
+  createdAt         DateTime     @default(now())
+  revokedAt         DateTime?
+  lastUsedAt        DateTime?
+
+  replacedByKeyId String? @unique
+  replacedByKey   ApiKey? @relation("ApiKeyReplacement", fields: [replacedByKeyId], references: [id])
+  replacesKeys    ApiKey[] @relation("ApiKeyReplacement")
+
+  scopes    ApiKeyScope[]
+  usageLogs ApiUsageLog[]
+
+  @@index([userId])
+}
+
+model ApiKeyScope {
+  apiKeyId String
+  scopeId  String
+
+  apiKey ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  scope  ApiScope @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+
+  @@id([apiKeyId, scopeId])
+  @@index([scopeId])
+}
+
+model ApiUsageLog {
+  id             String   @id @default(uuid())
+  apiKeyId       String
+  endpointId     String?
+  httpMethod     String
+  path           String
+  statusCode     Int
+  responseTimeMs Int
+  requestId      String?
+  timestamp      DateTime @default(now())
+
+  apiKey   ApiKey       @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  endpoint ApiEndpoint? @relation(fields: [endpointId], references: [id], onDelete: SetNull)
+
+  @@index([apiKeyId, timestamp])
+  @@index([endpointId, timestamp])
+}
+
+model AuditLog {
+  id          String         @id @default(uuid())
+  actorUserId String?
+  actorRole   AuditActorRole
+  action      String
+  targetType  String
+  targetId    String?
+  metadataJson String?
+  createdAt   DateTime       @default(now())
+
+  actorUser User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model BlockedIp {
+  id       String          @id @default(uuid())
+  ipOrCidr String
+  reason   String
+  status   BlockedIpStatus
+  createdAt DateTime       @default(now())
+
+  @@index([status])
+}
+
+model RateLimitBucket {
+  id        String          @id
+  apiKeyId  String
+  endpointId String?
+  window    RateLimitWindow
+  startTs   DateTime
+  count     Int
+  updatedAt DateTime        @updatedAt
+
+  @@index([apiKeyId, window, startTs])
+  @@index([endpointId, window, startTs])
+}
+
+model RateLimitPolicy {
+  id               String   @id
+  defaultPerMinute Int
+  defaultPerHour   Int
+  capPerMinute     Int
+  capPerHour       Int
+  updatedAt        DateTime @updatedAt
+}

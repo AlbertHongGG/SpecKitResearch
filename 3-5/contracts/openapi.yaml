@@ -1,0 +1,602 @@
+openapi: 3.0.3
+info:
+  title: API Platform & Key Management
+  version: 1.0.0
+  description: |-
+    API 平台後台與 Gateway 合約（僅描述外部可觀察行為）。
+servers:
+  - url: https://api.example.com
+security:
+  - SessionAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /register:
+    post:
+      summary: 註冊 Developer 帳號
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /login:
+    post:
+      summary: 登入（建立 Web Session）
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登入成功
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: httpOnly session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout:
+    post:
+      summary: 登出（撤銷 Session）
+      tags: [Auth]
+      responses:
+        '204':
+          description: 登出成功
+
+  /api-keys:
+    get:
+      summary: 列出 API Keys
+      tags: [ApiKey]
+      security:
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Key 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: 建立 API Key（只顯示一次原文）
+      tags: [ApiKey]
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreateRequest'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api-keys/{api_key_id}:
+    patch:
+      summary: 更新 API Key 設定
+      tags: [ApiKey]
+      security:
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ApiKeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api-keys/{api_key_id}/revoke:
+    post:
+      summary: 撤銷 API Key
+      tags: [ApiKey]
+      security:
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ApiKeyId'
+      responses:
+        '204':
+          description: 已撤銷
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api-keys/{api_key_id}/block:
+    post:
+      summary: 封鎖 API Key（Admin）
+      tags: [ApiKey]
+      security:
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ApiKeyId'
+      responses:
+        '204':
+          description: 已封鎖
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /usage-logs:
+    get:
+      summary: 查詢 Usage Logs
+      tags: [Usage]
+      security:
+        - SessionAuth: []
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: status_code
+          required: false
+          schema:
+            type: integer
+        - in: query
+          name: endpoint
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usage Logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsageLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/services:
+    post:
+      summary: 建立 API Service（Admin）
+      tags: [Admin]
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiServiceCreate'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiService'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/services/{service_id}/endpoints:
+    post:
+      summary: 建立 Endpoint（Admin）
+      tags: [Admin]
+      security:
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiEndpointCreate'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEndpoint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/scopes:
+    post:
+      summary: 建立 Scope（Admin）
+      tags: [Admin]
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiScopeCreate'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiScope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    SessionAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: APIKey
+
+  parameters:
+    ApiKeyId:
+      in: path
+      name: api_key_id
+      required: true
+      schema:
+        type: string
+    ServiceId:
+      in: path
+      name: service_id
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: 請求格式錯誤
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未授權或憑證無效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 權限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 衝突（重複或狀態不允許）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    LoginResponse:
+      type: object
+      required: [user_id, role]
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [developer, admin]
+
+    UserPublic:
+      type: object
+      required: [user_id, email, role, status, created_at]
+      properties:
+        user_id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [developer, admin]
+        status:
+          type: string
+          enum: [active, disabled]
+        created_at:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      required: [api_key_id, name, scopes, status, created_at]
+      properties:
+        api_key_id:
+          type: string
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, revoked, blocked]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        replaced_by_key_id:
+          type: string
+          nullable: true
+
+    ApiKeyCreateRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+        replaces_api_key_id:
+          type: string
+          nullable: true
+
+    ApiKeyCreateResponse:
+      type: object
+      required: [api_key_id, name, scopes, status, api_key_plaintext]
+      properties:
+        api_key_id:
+          type: string
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+        api_key_plaintext:
+          type: string
+
+    ApiKeyUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        rate_limit_per_minute:
+          type: integer
+          nullable: true
+        rate_limit_per_hour:
+          type: integer
+          nullable: true
+
+    UsageLog:
+      type: object
+      required: [api_key_id, http_method, path, status_code, response_time_ms, timestamp]
+      properties:
+        api_key_id:
+          type: string
+        endpoint_id:
+          type: string
+          nullable: true
+        http_method:
+          type: string
+        path:
+          type: string
+        status_code:
+          type: integer
+        response_time_ms:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiServiceCreate:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    ApiService:
+      type: object
+      required: [id, name, description, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    ApiEndpointCreate:
+      type: object
+      required: [method, path, status]
+      properties:
+        method:
+          type: string
+          enum: [GET, POST, PUT, PATCH, DELETE]
+        path:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    ApiEndpoint:
+      type: object
+      required: [id, service_id, method, path, status]
+      properties:
+        id:
+          type: string
+        service_id:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    ApiScopeCreate:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    ApiScope:
+      type: object
+      required: [id, name, description]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

@@ -1,0 +1,27 @@
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# Env
+.env*
+!.env.example
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+
+# Local DB / test scratch
+backend/prisma/dev.db
+backend/prisma/tests/.tmp/
+backend/tests/.tmp/
+
+# Next.js
+.next/
+
+# IDE
+.vscode/
+.idea/

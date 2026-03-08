@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DEVELOPER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum KeyStatus {
+  ACTIVE
+  REVOKED
+  BLOCKED
+}
+
+enum ServiceStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum EndpointStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ScopeStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum RateWindow {
+  MINUTE
+  HOUR
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+  OPTIONS
+  HEAD
+}
+
+model User {
+  id          String     @id @default(cuid())
+  email       String     @unique
+  passwordHash String
+  role        UserRole   @default(DEVELOPER)
+  status      UserStatus @default(ACTIVE)
+  lastLoginAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  sessions    Session[]
+  apiKeys     ApiKey[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ApiService {
+  id         String        @id @default(cuid())
+  slug       String        @unique
+  name       String
+  upstreamUrl String
+  status     ServiceStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  endpoints  ApiEndpoint[]
+}
+
+model ApiEndpoint {
+  id          String         @id @default(cuid())
+  serviceId   String
+  name        String
+  method      HttpMethod
+  pathPattern String
+  status      EndpointStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  service ApiService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  scopeAllows EndpointScopeAllow[]
+
+  @@index([serviceId])
+  @@index([serviceId, method])
+}
+
+model ApiScope {
+  id          String      @id @default(cuid())
+  key         String      @unique
+  description String
+  status      ScopeStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  scopeAllows EndpointScopeAllow[]
+  apiKeyScopes ApiKeyScope[]
+}
+
+model EndpointScopeAllow {
+  id         String   @id @default(cuid())
+  endpointId String
+  scopeId    String
+  createdAt  DateTime @default(now())
+
+  endpoint ApiEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  scope    ApiScope    @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, scopeId])
+  @@index([endpointId])
+  @@index([scopeId])
+}
+
+model ApiKey {
+  id               String    @id
+  userId           String
+  name             String
+  status           KeyStatus @default(ACTIVE)
+
+  secretHash       String
+  secretLast4      String
+  pepperVersion    Int       @default(1)
+
+  minuteLimitOverride Int?
+  hourLimitOverride   Int?
+
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  blockedAt        DateTime?
+  replacedByKeyId  String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scopes ApiKeyScope[]
+  usageLogs UsageLog[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model ApiKeyScope {
+  id       String   @id @default(cuid())
+  keyId    String
+  scopeId  String
+  createdAt DateTime @default(now())
+
+  key   ApiKey   @relation(fields: [keyId], references: [id], onDelete: Cascade)
+  scope ApiScope @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+
+  @@unique([keyId, scopeId])
+  @@index([keyId])
+  @@index([scopeId])
+}
+
+model RateLimitSetting {
+  id              String   @id
+  defaultMinute   Int
+  defaultHour     Int
+  maxMinute       Int
+  maxHour         Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model RateLimitCounter {
+  id          String     @id @default(cuid())
+  keyId       String
+  window      RateWindow
+  bucketStart DateTime
+  count       Int
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([keyId, window, bucketStart])
+  @@index([bucketStart])
+}
+
+model UsageLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  requestId  String?
+  keyId      String?
+  userId     String?
+
+  serviceSlug String?
+  endpointId  String?
+  method      String
+  path        String
+  statusCode  Int
+  durationMs  Int?
+  outcome     String
+  errorCode   String?
+
+  key ApiKey? @relation(fields: [keyId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([keyId])
+  @@index([userId])
+  @@index([serviceSlug])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  createdAt   DateTime @default(now())
+  requestId   String?
+  actorUserId String?
+  actorRole   String?
+  action      String
+  targetType  String?
+  targetId    String?
+  success     Boolean  @default(true)
+  metadata    Json?
+
+  @@index([createdAt])
+  @@index([actorUserId])
+  @@index([action])
+}

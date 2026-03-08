@@ -1,0 +1,13 @@
+{
+  "name": "@app/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "types/index.ts",
+  "scripts": {
+    "build": "echo contracts-only"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "subscription-billing-ssot",
+  "private": true,
+  "packageManager": "pnpm@9.15.5",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm -C apps/api dev\" \"pnpm -C apps/web dev\"",
+    "build": "pnpm -r build",
+    "lint": "pnpm -C apps/api lint && pnpm -C apps/web lint",
+    "format": "prettier . --write",
+    "test": "pnpm -C apps/api test && pnpm -C packages/shared test",
+    "test:contract": "pnpm -C packages/contracts test:contract",
+    "test:e2e": "pnpm -C apps/web test:e2e"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "eslint": "^9.9.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@nestjs/common",
+      "@nestjs/platform-express",
+      "@prisma/engines",
+      "@prisma/client",
+      "prisma"
+    ]
+  }
+}

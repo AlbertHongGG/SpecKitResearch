@@ -1,0 +1,1218 @@
+openapi: 3.0.3
+info:
+  title: Payment Flow Simulation Platform API
+  version: 0.1.0
+  description: |
+    金流前置模擬平台 API（不連真實金流、不儲存敏感卡資料）。
+
+    本 OpenAPI 以 spec.md 的「Data Contract & API Semantics」為準；欄位命名採用 spec 內使用的 snake_case。
+
+    Auth: 以 HttpOnly session cookie 驗證。
+    Errors: 統一 error envelope（見 components/schemas/ErrorResponse）。
+servers:
+  - url: http://localhost:3001
+    description: Local
+
+tags:
+  - name: Auth
+  - name: Orders
+  - name: PayPage
+  - name: Webhook
+  - name: Replay
+  - name: Admin
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: authLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      operationId: authLogout
+      responses:
+        '204':
+          description: Logged out
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current auth status
+      operationId: authMe
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMeResponse'
+
+  /api/orders:
+    post:
+      tags: [Orders]
+      summary: Create order
+      operationId: ordersCreate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrdersCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    get:
+      tags: [Orders]
+      summary: List orders
+      operationId: ordersList
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - in: query
+          name: payment_method
+          schema:
+            type: string
+          description: payment_method_code
+        - in: query
+          name: simulation_scenario
+          schema:
+            $ref: '#/components/schemas/SimulationScenarioType'
+        - in: query
+          name: created_at_from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: created_at_to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order detail
+      operationId: ordersGetById
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/pay/{order_no}:
+    get:
+      tags: [PayPage]
+      summary: Pay page load (server side)
+      operationId: payPageLoad
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [PayPage]
+      summary: Pay page pay (simulate payment)
+      operationId: payPagePay
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayPagePayRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayPagePayResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{id}/webhook/resend:
+    post:
+      tags: [Webhook]
+      summary: Resend webhook
+      operationId: webhookResend
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookResendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{id}/replay:
+    post:
+      tags: [Replay]
+      summary: Replay return/webhook behaviors for a terminal order
+      operationId: replayRun
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayRunRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayRunResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/payment-methods:
+    get:
+      tags: [Admin]
+      summary: List payment methods
+      operationId: adminPaymentMethodList
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPaymentMethodListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    put:
+      tags: [Admin]
+      summary: Upsert payment method
+      operationId: adminPaymentMethodUpsert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPaymentMethodUpsertRequest'
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/scenario-templates:
+    get:
+      tags: [Admin]
+      summary: List scenario templates
+      operationId: adminScenarioTemplateList
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminScenarioTemplateListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    put:
+      tags: [Admin]
+      summary: Upsert scenario template
+      operationId: adminScenarioTemplateUpsert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminScenarioTemplateUpsertRequest'
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/settings:
+    get:
+      tags: [Admin]
+      summary: Get system settings
+      operationId: adminSettingsGet
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    put:
+      tags: [Admin]
+      summary: Update system settings
+      operationId: adminSettingsUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSettings'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+  parameters:
+    OrderId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    OrderNo:
+      in: path
+      name: order_no
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            bad_request:
+              summary: Bad request
+              value:
+                error:
+                  code: BAD_REQUEST
+                  message: Invalid input
+                  request_id: req_01HZY3EXAMPLE
+                  details: null
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              summary: Not logged in
+              value:
+                error:
+                  code: UNAUTHORIZED
+                  message: Unauthorized
+                  request_id: req_01HZY3EXAMPLE
+                  details: null
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              summary: Not allowed
+              value:
+                error:
+                  code: FORBIDDEN
+                  message: Forbidden
+                  request_id: req_01HZY3EXAMPLE
+                  details: null
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            not_found:
+              summary: Resource not found
+              value:
+                error:
+                  code: NOT_FOUND
+                  message: Not found
+                  request_id: req_01HZY3EXAMPLE
+                  details: null
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            conflict:
+              summary: Illegal state transition
+              value:
+                error:
+                  code: CONFLICT
+                  message: Conflict
+                  request_id: req_01HZY3EXAMPLE
+                  details:
+                    reason: illegal_transition
+    RateLimited:
+      description: Too Many Requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rate_limited:
+              summary: Too many requests
+              value:
+                error:
+                  code: RATE_LIMITED
+                  message: Too many requests
+                  request_id: req_01HZY3EXAMPLE
+                  details:
+                    retry_after_sec: 60
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            request_id:
+              type: string
+            details:
+              nullable: true
+          required: [code, message, request_id]
+      required: [error]
+      example:
+        error:
+          code: BAD_REQUEST
+          message: Invalid input
+          request_id: req_01HZY3EXAMPLE
+          details: null
+
+    UserRole:
+      type: string
+      enum: [USER_DEVELOPER, ADMIN]
+
+    OrderStatus:
+      type: string
+      enum: [created, payment_pending, paid, failed, cancelled, timeout]
+
+    ReturnMethod:
+      type: string
+      enum: [query_string, post_form]
+
+    SimulationScenarioType:
+      type: string
+      enum: [success, failed, cancelled, timeout, delayed_success]
+
+    ActorType:
+      type: string
+      enum: [user, admin, system]
+
+    ReplayScope:
+      type: string
+      enum: [webhook_only, full_flow]
+
+    AuthLoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+      required: [email, password]
+      example:
+        email: admin@example.com
+        password: password123
+
+    AuthLoginResponse:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/UserRole'
+      required: [role]
+      example:
+        role: ADMIN
+
+    AuthMeResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        role:
+          $ref: '#/components/schemas/UserRole'
+        email:
+          type: string
+          format: email
+      required: [authenticated]
+      example:
+        authenticated: true
+        role: USER_DEVELOPER
+        email: dev@example.com
+
+    OrdersCreateRequest:
+      type: object
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+        currency:
+          type: string
+          default: TWD
+        callback_url:
+          type: string
+          format: uri
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+        payment_method_code:
+          type: string
+        simulation_scenario_type:
+          $ref: '#/components/schemas/SimulationScenarioType'
+        delay_sec:
+          type: integer
+          minimum: 0
+          default: 0
+        webhook_delay_sec:
+          type: integer
+          minimum: 0
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+      required: [amount, callback_url, payment_method_code, simulation_scenario_type]
+      example:
+        amount: 100
+        currency: TWD
+        callback_url: http://localhost:4000/callback
+        webhook_url: http://localhost:4000/webhook
+        payment_method_code: card
+        simulation_scenario_type: success
+        delay_sec: 0
+        webhook_delay_sec: 1
+
+    OrdersCreateResponse:
+      type: object
+      properties:
+        order:
+          $ref: '#/components/schemas/OrderDetail'
+        pay_url:
+          type: string
+          example: /pay/ORD-0001
+      required: [order, pay_url]
+
+    OrdersListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderSummary'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_items:
+          type: integer
+        total_pages:
+          type: integer
+      required: [items, page, page_size, total_items, total_pages]
+      example:
+        items:
+          - id: ord_01HZY3EXAMPLE
+            order_no: ORD-0001
+            amount: 100
+            currency: TWD
+            status: created
+            payment_method: card
+            simulation_scenario: success
+            created_at: 2026-03-04T00:00:00.000Z
+            completed_at: null
+        page: 1
+        page_size: 20
+        total_items: 1
+        total_pages: 1
+
+    OrderSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        order_no:
+          type: string
+        amount:
+          type: integer
+        currency:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        payment_method:
+          type: string
+          description: payment_method_code
+        simulation_scenario:
+          $ref: '#/components/schemas/SimulationScenarioType'
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, order_no, amount, currency, status, payment_method, simulation_scenario, created_at]
+      example:
+        id: ord_01HZY3EXAMPLE
+        order_no: ORD-0001
+        amount: 100
+        currency: TWD
+        status: created
+        payment_method: card
+        simulation_scenario: success
+        created_at: 2026-03-04T00:00:00.000Z
+        completed_at: null
+
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/OrderSummary'
+        - type: object
+          properties:
+            callback_url:
+              type: string
+              format: uri
+            return_method:
+              $ref: '#/components/schemas/ReturnMethod'
+            webhook_url:
+              type: string
+              format: uri
+              nullable: true
+            delay_sec:
+              type: integer
+              minimum: 0
+            webhook_delay_sec:
+              type: integer
+              minimum: 0
+              nullable: true
+            error_code:
+              type: string
+              nullable: true
+            error_message:
+              type: string
+              nullable: true
+            state_events:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderStateEvent'
+            return_logs:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReturnLog'
+            webhook_logs:
+              type: array
+              items:
+                $ref: '#/components/schemas/WebhookLog'
+            replay_runs:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplayRun'
+            audit_logs:
+              type: array
+              items:
+                $ref: '#/components/schemas/AuditLog'
+          required: [callback_url, return_method, delay_sec, state_events, return_logs, webhook_logs, replay_runs, audit_logs]
+      example:
+        id: ord_01HZY3EXAMPLE
+        order_no: ORD-0001
+        amount: 100
+        currency: TWD
+        status: created
+        payment_method: card
+        simulation_scenario: success
+        created_at: 2026-03-04T00:00:00.000Z
+        completed_at: null
+        callback_url: http://localhost:4000/callback
+        return_method: query_string
+        webhook_url: http://localhost:4000/webhook
+        delay_sec: 0
+        webhook_delay_sec: 1
+        error_code: null
+        error_message: null
+        state_events: []
+        return_logs: []
+        webhook_logs: []
+        replay_runs: []
+        audit_logs: []
+
+    ReturnPayload:
+      type: object
+      properties:
+        order_no:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        amount:
+          type: integer
+        currency:
+          type: string
+        completed_at:
+          type: string
+          format: date-time
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+      required: [order_no, status, amount, currency, completed_at]
+      example:
+        order_no: ORD-0001
+        status: paid
+        amount: 100
+        currency: TWD
+        completed_at: 2026-03-04T00:01:00.000Z
+        error_code: null
+        error_message: null
+
+    PayPagePayRequest:
+      type: object
+      properties:
+        confirm:
+          type: boolean
+      required: [confirm]
+      example:
+        confirm: true
+
+    PayPagePayResponse:
+      type: object
+      properties:
+        order:
+          $ref: '#/components/schemas/OrderDetail'
+        return_dispatch:
+          type: object
+          properties:
+            method:
+              $ref: '#/components/schemas/ReturnMethod'
+            payload:
+              $ref: '#/components/schemas/ReturnPayload'
+            callback_url:
+              type: string
+              format: uri
+          required: [method, payload, callback_url]
+      required: [order, return_dispatch]
+      example:
+        order:
+          id: ord_01HZY3EXAMPLE
+          order_no: ORD-0001
+          amount: 100
+          currency: TWD
+          status: paid
+          payment_method: card
+          simulation_scenario: success
+          created_at: 2026-03-04T00:00:00.000Z
+          completed_at: 2026-03-04T00:01:00.000Z
+          callback_url: http://localhost:4000/callback
+          return_method: query_string
+          webhook_url: http://localhost:4000/webhook
+          delay_sec: 0
+          webhook_delay_sec: 1
+          error_code: null
+          error_message: null
+          state_events: []
+          return_logs: []
+          webhook_logs: []
+          replay_runs: []
+          audit_logs: []
+        return_dispatch:
+          method: query_string
+          callback_url: http://localhost:4000/callback
+          payload:
+            order_no: ORD-0001
+            status: paid
+            amount: 100
+            currency: TWD
+            completed_at: 2026-03-04T00:01:00.000Z
+            error_code: null
+            error_message: null
+
+    WebhookResendResponse:
+      type: object
+      properties:
+        webhook_log_id:
+          type: string
+      required: [webhook_log_id]
+      example:
+        webhook_log_id: whlog_01HZY3EXAMPLE
+
+    ReplayRunRequest:
+      type: object
+      properties:
+        scope:
+          $ref: '#/components/schemas/ReplayScope'
+      required: [scope]
+      example:
+        scope: webhook_only
+
+    ReplayRunResponse:
+      type: object
+      properties:
+        replay_run_id:
+          type: string
+        result_status:
+          type: string
+          enum: [success, fail]
+      required: [replay_run_id, result_status]
+      example:
+        replay_run_id: rprun_01HZY3EXAMPLE
+        result_status: success
+
+    OrderStateEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        from:
+          $ref: '#/components/schemas/OrderStatus'
+          nullable: true
+        to:
+          $ref: '#/components/schemas/OrderStatus'
+        trigger:
+          type: string
+        actor_type:
+          $ref: '#/components/schemas/ActorType'
+        occurred_at:
+          type: string
+          format: date-time
+        meta:
+          nullable: true
+      required: [id, to, trigger, actor_type, occurred_at]
+
+    ReturnLog:
+      type: object
+      properties:
+        id:
+          type: string
+        delivery_method:
+          $ref: '#/components/schemas/ReturnMethod'
+        callback_url:
+          type: string
+          format: uri
+        payload:
+          $ref: '#/components/schemas/ReturnPayload'
+        dispatched_at:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        error_message:
+          type: string
+          nullable: true
+        replay_run_id:
+          type: string
+          nullable: true
+      required: [id, delivery_method, callback_url, payload, dispatched_at, success]
+      example:
+        id: rlog_01HZY3EXAMPLE
+        delivery_method: query_string
+        callback_url: http://localhost:4000/callback
+        payload:
+          order_no: ORD-0001
+          status: paid
+          amount: 100
+          currency: TWD
+          completed_at: 2026-03-04T00:01:00.000Z
+          error_code: null
+          error_message: null
+        dispatched_at: 2026-03-04T00:01:01.000Z
+        success: true
+        error_message: null
+        replay_run_id: null
+
+    WebhookLog:
+      type: object
+      properties:
+        id:
+          type: string
+        request_headers:
+          type: object
+          additionalProperties:
+            type: string
+        payload:
+          $ref: '#/components/schemas/ReturnPayload'
+        sent_at:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        response_status:
+          type: integer
+          nullable: true
+        response_body_excerpt:
+          type: string
+          nullable: true
+        replay_run_id:
+          type: string
+          nullable: true
+      required: [id, request_headers, payload, sent_at, success]
+      example:
+        id: whlog_01HZY3EXAMPLE
+        request_headers:
+          content-type: application/json
+          x-signature: t=1700000000,v1=deadbeef...
+        payload:
+          order_no: ORD-0001
+          status: paid
+          amount: 100
+          currency: TWD
+          completed_at: 2026-03-04T00:01:00.000Z
+          error_code: null
+          error_message: null
+        sent_at: 2026-03-04T00:01:05.000Z
+        success: true
+        response_status: 200
+        response_body_excerpt: OK
+        replay_run_id: null
+
+    ReplayRun:
+      type: object
+      properties:
+        id:
+          type: string
+        scope:
+          $ref: '#/components/schemas/ReplayScope'
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        result_status:
+          type: string
+          enum: [success, fail]
+      required: [id, scope, started_at, result_status]
+      example:
+        id: rprun_01HZY3EXAMPLE
+        scope: webhook_only
+        started_at: 2026-03-04T00:02:00.000Z
+        finished_at: 2026-03-04T00:02:01.000Z
+        result_status: success
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+        actor_type:
+          $ref: '#/components/schemas/ActorType'
+        actor_user_id:
+          type: string
+          nullable: true
+        action:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+          nullable: true
+        occurred_at:
+          type: string
+          format: date-time
+        meta:
+          nullable: true
+      required: [id, actor_type, action, target_type, occurred_at]
+      example:
+        id: audit_01HZY3EXAMPLE
+        actor_type: admin
+        actor_user_id: usr_admin
+        action: admin.payment_method.upsert
+        target_type: payment_method
+        target_id: card
+        occurred_at: 2026-03-04T00:00:10.000Z
+        meta:
+          code: card
+
+    PaymentMethod:
+      type: object
+      properties:
+        code:
+          type: string
+        display_name:
+          type: string
+        enabled:
+          type: boolean
+        sort_order:
+          type: integer
+      required: [code, display_name, enabled, sort_order]
+      example:
+        code: card
+        display_name: Credit Card
+        enabled: true
+        sort_order: 10
+
+    AdminPaymentMethodListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentMethod'
+      required: [items]
+
+    AdminPaymentMethodUpsertRequest:
+      allOf:
+        - $ref: '#/components/schemas/PaymentMethod'
+
+    ScenarioTemplate:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/SimulationScenarioType'
+        default_delay_sec:
+          type: integer
+          minimum: 0
+        default_error_code:
+          type: string
+          nullable: true
+        default_error_message:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+      required: [type, default_delay_sec, enabled]
+      example:
+        type: success
+        default_delay_sec: 0
+        default_error_code: null
+        default_error_message: null
+        enabled: true
+
+    AdminScenarioTemplateListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioTemplate'
+      required: [items]
+
+    AdminScenarioTemplateUpsertRequest:
+      allOf:
+        - $ref: '#/components/schemas/ScenarioTemplate'
+
+    WebhookSigningSettings:
+      type: object
+      properties:
+        active_secret_id:
+          type: string
+        previous_secret_id:
+          type: string
+          nullable: true
+        previous_secret_grace_period_hours:
+          type: integer
+          minimum: 0
+      required: [active_secret_id, previous_secret_grace_period_hours]
+      example:
+        active_secret_id: whsec_01HZY3EXAMPLE
+        previous_secret_id: null
+        previous_secret_grace_period_hours: 24
+
+    AdminSettings:
+      type: object
+      properties:
+        session_ttl_hours:
+          type: integer
+          minimum: 1
+        allowed_currencies:
+          type: array
+          items:
+            type: string
+        default_return_method:
+          $ref: '#/components/schemas/ReturnMethod'
+        webhook_signing:
+          $ref: '#/components/schemas/WebhookSigningSettings'
+      required: [session_ttl_hours, allowed_currencies, default_return_method, webhook_signing]
+      example:
+        session_ttl_hours: 24
+        allowed_currencies: [TWD, USD]
+        default_return_method: query_string
+        webhook_signing:
+          active_secret_id: whsec_01HZY3EXAMPLE
+          previous_secret_id: null
+          previous_secret_grace_period_hours: 24
+
+security:
+  - SessionCookie: []

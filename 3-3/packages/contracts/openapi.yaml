@@ -1,0 +1,1210 @@
+openapi: 3.0.3
+info:
+  title: Subscription & Billing SSOT API
+  version: 0.1.0
+  description: |
+    SaaS 訂閱/計費/用量/Entitlement 的單一事實來源（SSOT）。
+    - Auth: cookie-based session（httpOnly）
+    - CSRF: 所有 state-changing 請求需要 CSRF token（header）
+servers:
+  - url: http://localhost:4000
+
+tags:
+  - name: Public
+  - name: Auth
+  - name: App
+  - name: Org
+  - name: Admin
+  - name: Webhooks
+
+paths:
+  /pricing/plans:
+    get:
+      tags: [Public]
+      summary: 公開方案列表
+      parameters:
+        - in: query
+          name: billingCycle
+          required: false
+          schema:
+            $ref: '#/components/schemas/BillingCycle'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanPublic'
+                required: [plans]
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: 註冊並建立初始組織
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: session cookie（httpOnly）
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登入
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: session cookie（httpOnly）
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出（會清除 session）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: 取得目前登入使用者與可用組織
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+
+  /orgs:
+    get:
+      tags: [Org]
+      summary: 列出使用者所屬組織
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationSummary'
+                required: [organizations]
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+
+  /orgs/active:
+    put:
+      tags: [Org]
+      summary: 設定目前作用中的組織（便利功能；授權仍需 server-side 驗證）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                organizationId:
+                  type: string
+              required: [organizationId]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSummary'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/dashboard:
+    get:
+      tags: [App]
+      summary: App Dashboard（訂閱摘要 + 用量摘要 + 近期帳單）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/subscription:
+    get:
+      tags: [App]
+      summary: 訂閱摘要（含 entitlements）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionSummaryResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/subscription/upgrade:
+    post:
+      tags: [App]
+      summary: 立即升級（Org Admin only；產生 proration invoice）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpgradeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpgradeResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /app/subscription/downgrade:
+    post:
+      tags: [App]
+      summary: 安排降級（下期生效；Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DowngradeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DowngradeResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /app/subscription/cancel:
+    post:
+      tags: [App]
+      summary: 取消訂閱（Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /app/usage:
+    get:
+      tags: [App]
+      summary: 本期用量與限制（含策略提示）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageOverviewResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/billing/invoices:
+    get:
+      tags: [App]
+      summary: Invoice 清單
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: '#/components/schemas/InvoiceStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceListResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/billing/invoices/{invoiceId}:
+    get:
+      tags: [App]
+      summary: Invoice 詳細
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - in: path
+          name: invoiceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceDetailResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /app/billing/invoices/{invoiceId}/simulate-payment:
+    post:
+      tags: [App]
+      summary: 模擬付款結果（dev/test only；寫入 inbox 並走同一處理流程）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - in: path
+          name: invoiceId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                result:
+                  type: string
+                  enum: [success, fail]
+              required: [result]
+      responses:
+        '204':
+          description: Accepted
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /app/billing/payment-methods:
+    get:
+      tags: [App]
+      summary: 付款方式列表（Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodsResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [App]
+      summary: 新增/更新付款方式（Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertPaymentMethodRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodsResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/org/members:
+    get:
+      tags: [App]
+      summary: 組織成員列表（Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembersResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [App]
+      summary: 邀請成員（Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /app/org/members/{memberId}:
+    patch:
+      tags: [App]
+      summary: 調整成員角色（Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - in: path
+          name: memberId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  $ref: '#/components/schemas/OrganizationRole'
+              required: [role]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [App]
+      summary: 移除成員（soft delete；Org Admin only）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgHeader'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - in: path
+          name: memberId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/plans:
+    get:
+      tags: [Admin]
+      summary: 方案列表（Platform Admin）
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanAdmin'
+                required: [plans]
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin]
+      summary: 建立方案（Platform Admin）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanUpsertRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAdmin'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/plans/{planId}:
+    put:
+      tags: [Admin]
+      summary: 更新方案（Platform Admin）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - in: path
+          name: planId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanUpsertRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAdmin'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Admin Dashboard（Platform Admin）
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/overrides:
+    post:
+      tags: [Admin]
+      summary: 強制停權/解除（Platform Admin）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminForceStatusRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminForceStatusResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: 稽核查詢（Platform Admin）
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: actorUserId
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: organizationId
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: action
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: cursor
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogsResponse'
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /webhooks/payment/{provider}:
+    post:
+      tags: [Webhooks]
+      summary: 付款供應商回調（去重寫入 inbox 後回 2xx）
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: Accepted
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+
+  parameters:
+    OrgHeader:
+      in: header
+      name: X-Organization-Id
+      required: true
+      schema:
+        type: string
+      description: 組織上下文（後端每次驗 membership + RBAC）
+    CsrfHeader:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema:
+        type: string
+      description: CSRF token（double-submit cookie-to-header 或同步 token）
+
+  responses:
+    AuthRequired:
+      description: 未登入
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 無權限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 找不到資源
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 狀態衝突/不可逆規則阻擋
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: 輸入驗證錯誤
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorResponse'
+              - type: object
+                properties:
+                  details:
+                    type: object
+                    additionalProperties: true
+
+  schemas:
+    BillingCycle:
+      type: string
+      enum: [monthly, yearly]
+
+    OrganizationRole:
+      type: string
+      enum: [END_USER, ORG_ADMIN]
+
+    SubscriptionStatus:
+      type: string
+      enum: [Trial, Active, PastDue, Suspended, Canceled, Expired]
+
+    InvoiceStatus:
+      type: string
+      enum: [Draft, Open, Paid, Failed, Voided]
+
+    ErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          example: FORBIDDEN
+        message:
+          type: string
+          example: Access denied
+        requestId:
+          type: string
+          nullable: true
+      required: [errorCode, message]
+
+    AdminDashboardResponse:
+      type: object
+      properties:
+        orgCount: { type: integer, minimum: 0 }
+        userCount: { type: integer, minimum: 0 }
+        activeSubscriptions: { type: integer, minimum: 0 }
+        pastDueSubscriptions: { type: integer, minimum: 0 }
+        suspendedSubscriptions: { type: integer, minimum: 0 }
+        expiredSubscriptions: { type: integer, minimum: 0 }
+        openInvoices: { type: integer, minimum: 0 }
+        revenueTotalCents: { type: integer, minimum: 0 }
+      required: [orgCount, userCount, activeSubscriptions, pastDueSubscriptions, suspendedSubscriptions, expiredSubscriptions, openInvoices, revenueTotalCents]
+
+    PlanPublic:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        priceCents: { type: integer, minimum: 0 }
+        currency: { type: string }
+        isActive: { type: boolean }
+        limits:
+          type: object
+          additionalProperties: true
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+      required: [id, name, billingCycle, priceCents, currency, isActive, limits, features]
+
+    PlanAdmin:
+      allOf:
+        - $ref: '#/components/schemas/PlanPublic'
+        - type: object
+          properties:
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+
+    PlanUpsertRequest:
+      type: object
+      properties:
+        name: { type: string }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        priceCents: { type: integer, minimum: 0 }
+        currency: { type: string }
+        isActive: { type: boolean }
+        limits:
+          type: object
+          additionalProperties: true
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+      required: [name, billingCycle, priceCents, currency, isActive, limits, features]
+
+    SignUpRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        organizationName: { type: string, minLength: 1 }
+      required: [email, password, organizationName]
+
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+      required: [email, password]
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        isPlatformAdmin: { type: boolean }
+      required: [id, email, isPlatformAdmin]
+
+    OrganizationSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        memberRole:
+          type: string
+          enum: [END_USER, ORG_ADMIN]
+      required: [id, name, memberRole]
+
+    AuthResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        organizations:
+          type: array
+          items: { $ref: '#/components/schemas/OrganizationSummary' }
+        currentOrganization:
+          $ref: '#/components/schemas/OrganizationSummary'
+      required: [user, organizations, currentOrganization]
+
+    MeResponse:
+      allOf:
+        - $ref: '#/components/schemas/AuthResponse'
+
+    Period:
+      type: object
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+      required: [start, end]
+
+    PendingChange:
+      type: object
+      properties:
+        pendingPlanId: { type: string }
+        effectiveAt: { type: string, format: date-time }
+      required: [pendingPlanId, effectiveAt]
+
+    Entitlements:
+      type: object
+      properties:
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+        limits:
+          type: object
+          additionalProperties:
+            type: object
+        statusReason:
+          type: string
+      required: [features, limits]
+
+    SubscriptionSummaryResponse:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/SubscriptionStatus' }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        plan: { $ref: '#/components/schemas/PlanPublic' }
+        currentPeriod: { $ref: '#/components/schemas/Period' }
+        trialEndAt: { type: string, format: date-time, nullable: true }
+        gracePeriodEndAt: { type: string, format: date-time, nullable: true }
+        pendingChange: { $ref: '#/components/schemas/PendingChange' }
+        entitlements: { $ref: '#/components/schemas/Entitlements' }
+      required: [status, billingCycle, plan, currentPeriod, entitlements]
+
+    UpgradeRequest:
+      type: object
+      properties:
+        targetPlanId: { type: string }
+        targetBillingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        confirm: { type: boolean }
+      required: [targetPlanId, targetBillingCycle, confirm]
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string }
+        status: { $ref: '#/components/schemas/InvoiceStatus' }
+        billingPeriod: { $ref: '#/components/schemas/Period' }
+        totalCents: { type: integer }
+        currency: { type: string }
+        dueAt: { type: string, format: date-time, nullable: true }
+        paidAt: { type: string, format: date-time, nullable: true }
+        failedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+      required: [id, status, billingPeriod, totalCents, currency, createdAt]
+
+    UpgradeResponse:
+      type: object
+      properties:
+        subscription: { $ref: '#/components/schemas/SubscriptionSummaryResponse' }
+        prorationInvoice: { $ref: '#/components/schemas/Invoice' }
+      required: [subscription, prorationInvoice]
+
+    DowngradeRequest:
+      type: object
+      properties:
+        targetPlanId: { type: string }
+        targetBillingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        confirm: { type: boolean }
+      required: [targetPlanId, targetBillingCycle, confirm]
+
+    DowngradeResponse:
+      type: object
+      properties:
+        subscription: { $ref: '#/components/schemas/SubscriptionSummaryResponse' }
+      required: [subscription]
+
+    CancelResponse:
+      type: object
+      properties:
+        subscription: { $ref: '#/components/schemas/SubscriptionSummaryResponse' }
+      required: [subscription]
+
+    MeterPolicy:
+      type: string
+      enum: [block, throttle, overage]
+
+    MeterStatus:
+      type: string
+      enum: [ok, nearLimit, overLimit]
+
+    UsageMeterItem:
+      type: object
+      properties:
+        code:
+          type: string
+          enum: [API_CALLS, STORAGE_BYTES, USER_COUNT, PROJECT_COUNT]
+        name: { type: string }
+        unit: { type: string }
+        value: { type: number }
+        limit: { type: number, nullable: true }
+        policy: { $ref: '#/components/schemas/MeterPolicy' }
+        status: { $ref: '#/components/schemas/MeterStatus' }
+        resetAt: { type: string, format: date-time }
+      required: [code, name, unit, value, policy, status, resetAt]
+
+    UsageOverviewResponse:
+      type: object
+      properties:
+        meters:
+          type: array
+          items: { $ref: '#/components/schemas/UsageMeterItem' }
+      required: [meters]
+
+    InvoiceListResponse:
+      type: object
+      properties:
+        invoices:
+          type: array
+          items: { $ref: '#/components/schemas/Invoice' }
+      required: [invoices]
+
+    InvoiceLineItem:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [RECURRING, PRORATION, OVERAGE, TAX]
+        description: { type: string }
+        amountCents: { type: integer }
+        quantity: { type: number, nullable: true }
+        meterCode:
+          type: string
+          nullable: true
+      required: [type, description, amountCents]
+
+    InvoiceDetailResponse:
+      type: object
+      properties:
+        invoice: { $ref: '#/components/schemas/Invoice' }
+        lineItems:
+          type: array
+          items: { $ref: '#/components/schemas/InvoiceLineItem' }
+      required: [invoice, lineItems]
+
+    PaymentMethod:
+      type: object
+      properties:
+        id: { type: string }
+        provider: { type: string }
+        isDefault: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, provider, isDefault, createdAt]
+
+    PaymentMethodsResponse:
+      type: object
+      properties:
+        paymentMethods:
+          type: array
+          items: { $ref: '#/components/schemas/PaymentMethod' }
+      required: [paymentMethods]
+
+    UpsertPaymentMethodRequest:
+      type: object
+      properties:
+        paymentMethodToken: { type: string }
+        setDefault: { type: boolean }
+      required: [paymentMethodToken]
+
+    Member:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum: [END_USER, ORG_ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, REMOVED]
+      required: [id, email, role, status]
+
+    MembersResponse:
+      type: object
+      properties:
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/Member' }
+      required: [members]
+
+    InviteMemberRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum: [END_USER, ORG_ADMIN]
+      required: [email, role]
+
+    AdminForceStatusRequest:
+      type: object
+      properties:
+        organizationId: { type: string }
+        forcedStatus:
+          type: string
+          enum: [NONE, Suspended, Expired]
+        reason: { type: string, minLength: 1 }
+      required: [organizationId, forcedStatus, reason]
+
+    AdminForceStatusResponse:
+      type: object
+      properties:
+        forcedStatus:
+          type: string
+          enum: [NONE, Suspended, Expired]
+        createdAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+      required: [forcedStatus, createdAt]
+
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string }
+        actorUserId: { type: string }
+        roleContext:
+          type: string
+          enum: [GUEST, END_USER, ORG_ADMIN, PLATFORM_ADMIN, SYSTEM]
+        organizationId: { type: string, nullable: true }
+        action: { type: string }
+        targetType: { type: string }
+        targetId: { type: string, nullable: true }
+        payload:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      required: [id, actorUserId, roleContext, action, targetType, payload, createdAt]
+
+    AuditLogsResponse:
+      type: object
+      properties:
+        auditLogs:
+          type: array
+          items: { $ref: '#/components/schemas/AuditLog' }
+        nextCursor: { type: string, nullable: true }
+      required: [auditLogs]
+
+    DashboardResponse:
+      type: object
+      properties:
+        subscription: { $ref: '#/components/schemas/SubscriptionSummaryResponse' }
+        usage: { $ref: '#/components/schemas/UsageOverviewResponse' }
+        recentInvoices:
+          type: array
+          items: { $ref: '#/components/schemas/Invoice' }
+      required: [subscription, usage, recentInvoices]

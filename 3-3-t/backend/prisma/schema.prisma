@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String               @id @default(cuid())
+  email            String               @unique
+  passwordHash     String
+  isPlatformAdmin  Boolean              @default(false)
+  createdAt        DateTime             @default(now())
+  lastLoginAt      DateTime?
+  memberships      OrganizationMember[]
+  overridesCreated AdminOverride[]
+  auditLogs        AuditLog[]
+}
+
+model Organization {
+  id             String               @id @default(cuid())
+  name           String
+  createdAt      DateTime             @default(now())
+  members        OrganizationMember[]
+  subscriptions  Subscription[]
+  usageRecords   UsageRecord[]
+  invoices       Invoice[]
+  paymentMethods PaymentMethod[]
+  overrides      AdminOverride[]
+  auditLogs      AuditLog[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+}
+
+model Plan {
+  id           String         @id @default(cuid())
+  name         String
+  billingCycle String
+  priceCents   Int
+  currency     String
+  isActive     Boolean        @default(true)
+  limits       String
+  features     String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  subscriptions Subscription[] @relation("CurrentPlan")
+  pendingSubscriptions Subscription[] @relation("PendingPlan")
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  organizationId    String
+  planId            String
+  status            String
+  billingCycle      String
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndAt        DateTime?
+  canceledAt        DateTime?
+  expiredAt         DateTime?
+  pendingPlanId     String?
+  pendingEffectiveAt DateTime?
+  gracePeriodEndAt  DateTime?
+  version           Int                @default(1)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  plan              Plan               @relation("CurrentPlan", fields: [planId], references: [id])
+  pendingPlan       Plan?              @relation("PendingPlan", fields: [pendingPlanId], references: [id])
+  invoices          Invoice[]
+  usageRecords      UsageRecord[]
+}
+
+model UsageRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  meterCode      String
+  periodStart    DateTime
+  periodEnd      DateTime
+  value          Float
+  sourceEventId  String?
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([organizationId, periodStart, periodEnd])
+  @@unique([subscriptionId, meterCode, sourceEventId])
+}
+
+model Invoice {
+  id                String        @id @default(cuid())
+  organizationId    String
+  subscriptionId    String
+  status            String
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  totalCents        Int
+  currency          String
+  invoiceType       String
+  dueAt             DateTime?
+  paidAt            DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime      @default(now())
+  organization      Organization  @relation(fields: [organizationId], references: [id])
+  subscription      Subscription  @relation(fields: [subscriptionId], references: [id])
+  lineItems         InvoiceLineItem[]
+
+  @@unique([subscriptionId, invoiceType, billingPeriodStart, billingPeriodEnd])
+}
+
+model InvoiceLineItem {
+  id          String          @id @default(cuid())
+  invoiceId   String
+  type        String
+  description String
+  amountCents Int
+  quantity    Float?
+  meterCode   String?
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+}
+
+model PaymentMethod {
+  id                        String       @id @default(cuid())
+  organizationId            String
+  provider                  String
+  providerPaymentMethodRef  String
+  isDefault                 Boolean      @default(false)
+  createdAt                 DateTime     @default(now())
+  organization              Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isDefault])
+}
+
+model AdminOverride {
+  id              String       @id @default(cuid())
+  organizationId  String
+  forcedStatus    String       @default("NONE")
+  reason          String
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+  revokedAt       DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  createdBy       User         @relation(fields: [createdByUserId], references: [id])
+}
+
+model AuditLog {
+  id               String       @id @default(cuid())
+  actorUserId      String
+  actorRoleContext String
+  organizationId   String?
+  action           String
+  targetType       String
+  targetId         String?
+  payload          String
+  traceId          String?
+  correlationId    String?
+  createdAt        DateTime     @default(now())
+  actor            User         @relation(fields: [actorUserId], references: [id])
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+}
+
+model IdempotencyEvent {
+  id                String   @id @default(cuid())
+  provider          String
+  providerAccountId String
+  externalEventId   String
+  payload           String
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, providerAccountId, externalEventId])
+}
