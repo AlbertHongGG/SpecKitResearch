@@ -1,24 +1,32 @@
 {
-  "name": "trello-lite-monorepo",
+  "name": "api-key-platform",
   "private": true,
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "pnpm@9.15.9",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "dev:api": "pnpm --filter api dev",
-    "dev:web": "pnpm --filter web dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
+    "dev:backend": "pnpm -C backend dev",
+    "dev:frontend": "pnpm -C frontend dev",
+    "dev": "pnpm -C backend dev & pnpm -C frontend dev",
+    "build": "pnpm -C backend build && pnpm -C frontend build",
+    "test": "pnpm -C backend test && pnpm -C frontend test",
+    "lint": "pnpm -C backend lint && pnpm -C frontend lint",
     "format": "prettier -w .",
-    "e2e": "pnpm --filter web e2e",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -C backend typecheck && pnpm -C frontend typecheck"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint": "^9.0.0",
-    "eslint-config-prettier": "^9.0.0",
-    "prettier": "^3.0.0",
-    "typescript": "^5.5.0"
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }

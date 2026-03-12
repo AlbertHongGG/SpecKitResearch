@@ -8,7 +8,8 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Core domain/business rules MUST have tests (happy path, edge cases, failures). If any tests are omitted,
+the tasks list MUST include an explicit risk note + alternative validation + rollback plan.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -67,7 +68,11 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T006 [P] Setup API routing and middleware structure
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
+- [ ] T008a Define error response format + error codes (contract)
+- [ ] T008b Add request/trace id propagation strategy
 - [ ] T009 Setup environment configuration management
+- [ ] T009a Define rollback/compensation mechanism for write operations
+- [ ] T009b Define authn/authz enforcement points (server-side)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -81,7 +86,7 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **NOTE: Tests for core business rules are REQUIRED. Write tests first where feasible, and ensure they fail before implementation.**
 
 - [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
@@ -94,6 +99,8 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
 - [ ] T016 [US1] Add validation and error handling
 - [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T017a [US1] Ensure user-facing vs developer-facing error messaging
+- [ ] T017b [US1] Verify rollback/compensation with a failure-path test or checklist
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -155,6 +162,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Performance optimization across all stories
 - [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
 - [ ] TXXX Security hardening
+- [ ] TXXX Backward-compatibility review + migration/rollback rehearsal (if applicable)
 - [ ] TXXX Run quickstart.md validation
 
 ---

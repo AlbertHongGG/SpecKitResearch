@@ -4,10 +4,12 @@ import { z } from 'zod';
 
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { SessionGuard } from '../../common/auth/session.guard.js';
+import { OptionalSessionGuard } from '../../common/auth/optional-session.guard.js';
 import { CurrentUser } from '../../common/auth/current-user.decorator.js';
 import type { RequestWithUser } from '../../common/auth/session.guard.js';
 import { OrgMemberGuard } from '../../common/guards/org-member.guard.js';
 import { OrgRoleGuard } from '../../common/guards/org-role.guard.js';
+import { ReadOnlyGuard } from '../../common/guards/read-only.guard.js';
 import { OrgInvitesService } from './org-invites.service.js';
 
 const createSchema = z.object({ email: z.string().email() });
@@ -21,7 +23,7 @@ export class OrgInvitesController {
   constructor(private readonly invites: OrgInvitesService) {}
 
   @Post('orgs/:orgId/invites')
-  @UseGuards(SessionGuard, OrgMemberGuard, OrgRoleGuard)
+  @UseGuards(SessionGuard, OrgMemberGuard, OrgRoleGuard, ReadOnlyGuard)
   async createInvite(
     @Param('orgId') orgId: string,
     @Body(new ZodValidationPipe(createSchema)) body: z.infer<typeof createSchema>,
@@ -32,11 +34,13 @@ export class OrgInvitesController {
   }
 
   @Post('invites/:token/accept')
+  @UseGuards(OptionalSessionGuard)
   async acceptInvite(
     @Param('token') token: string,
     @Body(new ZodValidationPipe(acceptSchema)) body: z.infer<typeof acceptSchema>,
+    @CurrentUser() user: RequestWithUser['user'],
     @Res({ passthrough: true }) res: Response,
   ) {
-    return await this.invites.acceptInvite(token, body, res);
+    return await this.invites.acceptInvite(token, body, res, user);
   }
 }

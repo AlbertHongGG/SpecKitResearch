@@ -19,4 +19,17 @@ export class AdminPlansController {
   toggle(@Param('id') id: string, @Body() body: { isActive: boolean }) {
     return this.service.toggle(id, body.isActive);
   }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      priceCents?: number;
+      limits?: Record<string, unknown>;
+      features?: Record<string, boolean>;
+    },
+  ) {
+    return this.service.update(id, body);
+  }
 }

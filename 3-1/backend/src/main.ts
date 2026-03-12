@@ -27,17 +27,24 @@ async function bootstrap() {
     rateLimit({ name: 'payments_webhook', windowMs: 60_000, max: 60 }),
   );
 
-  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
+  const configuredOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+  const origins = Array.from(
+    new Set([
+      'http://localhost:5173',
+      'http://localhost:5174',
+      ...configuredOrigins,
+    ]),
+  );
 
   app.enableCors({
     origin: origins,
     credentials: true,
   });
 
-  const port = Number(process.env.PORT ?? 3001);
+  const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
 }
 bootstrap();

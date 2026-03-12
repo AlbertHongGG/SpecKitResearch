@@ -10,7 +10,16 @@ const SKIP_PATHS = new Set(['/auth/login', '/auth/csrf']);
 export class CsrfMiddleware implements NestMiddleware {
   use(req: Request, _res: Response, next: NextFunction) {
     if (SAFE_METHODS.has(req.method)) return next();
+
+    const rawUrl = (req.originalUrl ?? req.url ?? req.path) || '';
+    const urlPath = rawUrl.split('?')[0] ?? '';
     if (SKIP_PATHS.has(req.path)) return next();
+    if (SKIP_PATHS.has(urlPath)) return next();
+    for (const p of SKIP_PATHS) {
+      if (urlPath === p || urlPath.endsWith(p) || urlPath.endsWith(`${p}/`)) {
+        return next();
+      }
+    }
 
     const header = req.header('x-csrf-token') ?? '';
     const cookie = (req as any).cookies?.csrf ?? '';

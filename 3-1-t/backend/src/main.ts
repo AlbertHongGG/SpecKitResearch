@@ -6,11 +6,20 @@ import { requestIdMiddleware } from './common/observability/request-id.middlewar
 import { PrismaService } from './prisma/prisma.service';
 import { AppModule } from './app.module';
 
+function resolveCorsOrigins() {
+  return (
+    process.env.CORS_ORIGIN ?? 'http://localhost:5173,http://localhost:5174'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: resolveCorsOrigins(),
     credentials: true,
   });
 
@@ -21,7 +30,6 @@ async function bootstrap() {
   const prismaService = app.get(PrismaService);
   await prismaService.enableShutdownHooks(app);
 
-  await app.listen(Number(process.env.PORT) || 3001);
+  await app.listen(Number(process.env.PORT) || 4000);
 }
-bootstrap();
 void bootstrap();

@@ -1,171 +1,250 @@
-import { PrismaClient } from '@prisma/client';
+import { ApiKeyStatus, PrismaClient, ResourceStatus, ScopeRuleEffect, UserRole, UserStatus } from '@prisma/client';
 
-import { hashPassword } from '../src/domain/auth/password.js';
+import { hashApiKeySecret } from '../src/shared/crypto/api-key-hash';
+import { parseApiKey } from '../src/shared/crypto/api-key-format';
+import { hashPassword } from '../src/shared/crypto/password-hash';
 
 const prisma = new PrismaClient();
 
-async function main() {
-    const ownerEmail = 'owner@example.com';
-    const memberEmail = 'member@example.com';
-    const defaultPassword = 'password1234';
+const defaultPassword = process.env.SEED_DEFAULT_PASSWORD ?? 'password123';
+const knownApiKeys = {
+  demoRead: `ak_demoPublic01_${'A'.repeat(43)}`,
+  noScope: `ak_demoPublic02_${'B'.repeat(43)}`,
+  blocked: `ak_demoPublic03_${'C'.repeat(43)}`
+};
 
-    const [ownerHash, memberHash] = await Promise.all([
-        hashPassword(defaultPassword),
-        hashPassword(defaultPassword),
-    ]);
+async function upsertUser(input: {
+  email: string;
+  password: string;
+  role: UserRole;
+  status: UserStatus;
+}) {
+  const passwordHash = await hashPassword(input.password);
 
-    const owner = await prisma.user.upsert({
-        where: { email: ownerEmail },
-        update: {
-            displayName: 'Seed Owner',
-            passwordHash: ownerHash,
-        },
-        create: {
-            email: ownerEmail,
-            displayName: 'Seed Owner',
-            passwordHash: ownerHash,
-        },
-    });
+  return prisma.user.upsert({
+    where: { email: input.email },
+    update: {
+      passwordHash,
+      role: input.role,
+      status: input.status
+    },
+    create: {
+      email: input.email,
+      passwordHash,
+      role: input.role,
+      status: input.status
+    }
+  });
+}
 
-    const member = await prisma.user.upsert({
-        where: { email: memberEmail },
-        update: {
-            displayName: 'Seed Member',
-            passwordHash: memberHash,
-        },
-        create: {
-            email: memberEmail,
-            displayName: 'Seed Member',
-            passwordHash: memberHash,
-        },
-    });
+async function upsertKnownApiKey(input: {
+  userId: string;
+  plaintext: string;
+  name: string;
+  status: ApiKeyStatus;
+  scopes: string[];
+  rateLimitPerMinute?: number | null;
+  rateLimitPerHour?: number | null;
+}) {
+  const parsed = parseApiKey(input.plaintext);
+  if (!parsed) {
+    throw new Error(`Invalid seeded API key format: ${input.name}`);
+  }
 
-    await prisma.project.deleteMany({
-        where: {
-            ownerId: owner.id,
-            name: 'Seed Project',
-        },
-    });
+  const hash = hashApiKeySecret(parsed.secret);
+  const scopes = await prisma.apiScope.findMany({
+    where: { name: { in: input.scopes } },
+    select: { id: true, name: true }
+  });
 
-    const project = await prisma.project.create({
-        data: {
-            name: 'Seed Project',
-            description: 'Project for local testing',
-            ownerId: owner.id,
-            memberships: {
-                create: [
-                    { userId: owner.id, role: 'owner' },
-                    { userId: member.id, role: 'member' },
-                ],
-            },
-        },
-    });
+  if (scopes.length !== input.scopes.length) {
+    throw new Error(`Missing scopes for seeded key: ${input.name}`);
+  }
 
-    const board = await prisma.board.create({
-        data: {
-            projectId: project.id,
-            name: 'Main Board',
-            order: 1,
-        },
-    });
+  await prisma.apiKey.upsert({
+    where: { publicId: parsed.publicId },
+    update: {
+      userId: input.userId,
+      name: input.name,
+      hash,
+      status: input.status,
+      expiresAt: null,
+      revokedAt: null,
+      rateLimitPerMinute: input.rateLimitPerMinute ?? null,
+      rateLimitPerHour: input.rateLimitPerHour ?? null,
+      scopes: {
+        deleteMany: {},
+        createMany: {
+          data: scopes.map((scope) => ({ scopeId: scope.id }))
+        }
+      }
+    },
+    create: {
+      userId: input.userId,
+      publicId: parsed.publicId,
+      name: input.name,
+      hash,
+      status: input.status,
+      expiresAt: null,
+      revokedAt: null,
+      rateLimitPerMinute: input.rateLimitPerMinute ?? null,
+      rateLimitPerHour: input.rateLimitPerHour ?? null,
+      scopes: {
+        createMany: {
+          data: scopes.map((scope) => ({ scopeId: scope.id }))
+        }
+      }
+    }
+  });
+}
 
-    const todoList = await prisma.list.create({
-        data: {
-            boardId: board.id,
-            title: 'To Do',
-            order: 1,
-        },
-    });
+async function main(): Promise<void> {
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? defaultPassword;
 
-    const doingList = await prisma.list.create({
-        data: {
-            boardId: board.id,
-            title: 'Doing',
-            order: 2,
-            isWipLimited: true,
-            wipLimit: 2,
-        },
-    });
+  await prisma.rateLimitPolicy.upsert({
+    where: { id: 'default' },
+    update: {
+      defaultPerMinute: 60,
+      defaultPerHour: 1000,
+      capPerMinute: 600,
+      capPerHour: 10_000
+    },
+    create: {
+      id: 'default',
+      defaultPerMinute: 60,
+      defaultPerHour: 1000,
+      capPerMinute: 600,
+      capPerHour: 10_000
+    }
+  });
 
-    const doneList = await prisma.list.create({
-        data: {
-            boardId: board.id,
-            title: 'Done',
-            order: 3,
-        },
-    });
+  const adminUser = await upsertUser({
+    email: 'admin@example.com',
+    password: adminPassword,
+    role: UserRole.admin,
+    status: UserStatus.active
+  });
 
-    const setupTask = await prisma.task.create({
-        data: {
-            projectId: project.id,
-            boardId: board.id,
-            listId: todoList.id,
-            title: 'Verify local setup',
-            description: 'Confirm backend/frontend and authentication are working.',
-            position: 'a0',
-            status: 'open',
-            createdByUserId: owner.id,
-            assignees: {
-                create: [{ userId: owner.id }],
-            },
-        },
-    });
+  const developerUser = await upsertUser({
+    email: 'developer@example.com',
+    password: defaultPassword,
+    role: UserRole.developer,
+    status: UserStatus.active
+  });
 
-    const apiTask = await prisma.task.create({
-        data: {
-            projectId: project.id,
-            boardId: board.id,
-            listId: doingList.id,
-            title: 'Test API endpoints',
-            description: 'Run authentication and board/list/task endpoint tests.',
-            position: 'a1',
-            status: 'in_progress',
-            createdByUserId: owner.id,
-            assignees: {
-                create: [{ userId: member.id }],
-            },
-        },
-    });
+  await upsertUser({
+    email: 'disabled@example.com',
+    password: defaultPassword,
+    role: UserRole.developer,
+    status: UserStatus.disabled
+  });
 
-    await prisma.task.create({
-        data: {
-            projectId: project.id,
-            boardId: board.id,
-            listId: doneList.id,
-            title: 'Initial schema migration',
-            description: 'Prisma schema and initial migrations are applied.',
-            position: 'a2',
-            status: 'done',
-            createdByUserId: owner.id,
-        },
-    });
+  const demoService = await prisma.apiService.upsert({
+    where: { name: 'demo' },
+    update: { status: ResourceStatus.active },
+    create: {
+      name: 'demo',
+      description: 'Demo service for local development',
+      status: ResourceStatus.active
+    }
+  });
 
-    await prisma.comment.createMany({
-        data: [
-            {
-                taskId: setupTask.id,
-                authorId: owner.id,
-                content: 'Seeded by prisma/seed.ts',
-            },
-            {
-                taskId: apiTask.id,
-                authorId: member.id,
-                content: 'Ready for endpoint integration tests.',
-            },
-        ],
-    });
+  const demoEndpoint = await prisma.apiEndpoint.upsert({
+    where: {
+      serviceId_method_path: {
+        serviceId: demoService.id,
+        method: 'GET',
+        path: '/demo/ping'
+      }
+    },
+    update: { status: ResourceStatus.active },
+    create: {
+      serviceId: demoService.id,
+      method: 'GET',
+      path: '/demo/ping',
+      description: 'Demo protected endpoint',
+      status: ResourceStatus.active
+    }
+  });
 
-    console.log('Seed complete');
-    console.log(`Owner  : ${ownerEmail} / ${defaultPassword}`);
-    console.log(`Member : ${memberEmail} / ${defaultPassword}`);
-    console.log(`Project: ${project.name}`);
+  const scope = await prisma.apiScope.upsert({
+    where: { name: 'demo:read' },
+    update: {},
+    create: {
+      name: 'demo:read',
+      description: 'Allow calling demo endpoints'
+    }
+  });
+
+  // Extra scope for demo/testing: exists but does not allow any endpoints by default.
+  await prisma.apiScope.upsert({
+    where: { name: 'other:read' },
+    update: {},
+    create: {
+      name: 'other:read',
+      description: 'A scope with no allow rules (used for 403 demo)'
+    }
+  });
+
+  await prisma.apiScopeRule.upsert({
+    where: { scopeId_endpointId: { scopeId: scope.id, endpointId: demoEndpoint.id } },
+    update: {},
+    create: {
+      scopeId: scope.id,
+      endpointId: demoEndpoint.id,
+      effect: ScopeRuleEffect.allow
+    }
+  });
+
+  await upsertKnownApiKey({
+    userId: developerUser.id,
+    plaintext: knownApiKeys.demoRead,
+    name: 'Seeded Demo Key',
+    status: ApiKeyStatus.active,
+    scopes: ['demo:read'],
+    rateLimitPerMinute: 60,
+    rateLimitPerHour: 1000
+  });
+
+  await upsertKnownApiKey({
+    userId: developerUser.id,
+    plaintext: knownApiKeys.noScope,
+    name: 'Seeded No Scope Key',
+    status: ApiKeyStatus.active,
+    scopes: ['other:read'],
+    rateLimitPerMinute: 60,
+    rateLimitPerHour: 1000
+  });
+
+  await upsertKnownApiKey({
+    userId: adminUser.id,
+    plaintext: knownApiKeys.blocked,
+    name: 'Seeded Blocked Key',
+    status: ApiKeyStatus.blocked,
+    scopes: ['demo:read'],
+    rateLimitPerMinute: 60,
+    rateLimitPerHour: 1000
+  });
+
+  process.stdout.write(
+    [
+      'Seeded test accounts:',
+      `- admin@example.com / ${adminPassword}`,
+      `- developer@example.com / ${defaultPassword}`,
+      `- disabled@example.com / ${defaultPassword}`,
+      'Seeded API keys:',
+      `- demo:read => ${knownApiKeys.demoRead}`,
+      `- other:read => ${knownApiKeys.noScope}`,
+      `- blocked => ${knownApiKeys.blocked}`
+    ].join('\n') + '\n'
+  );
 }
 
 main()
-    .catch((error) => {
-        console.error(error);
-        throw error;
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+  .catch((err) => {
+    process.stderr.write(`${String(err)}\n`);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

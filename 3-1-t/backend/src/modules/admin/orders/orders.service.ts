@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 
+import { AuditActions } from '../../../common/audit/audit-actions';
+import { AuditService } from '../../../common/audit/audit.service';
 import { aggregateOrderStatus } from '../../orders/order-aggregation';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class AdminOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   search(query?: { buyerId?: string }) {
     return this.prisma.order.findMany({
@@ -23,6 +28,7 @@ export class AdminOrdersService {
   }
 
   async forceCancel(id: string) {
+    const existing = await this.prisma.order.findUnique({ where: { id } });
     await this.prisma.$transaction([
       this.prisma.order.update({
         where: { id },
@@ -33,6 +39,15 @@ export class AdminOrdersService {
         data: { status: 'CANCELLED' },
       }),
     ]);
+    if (existing) {
+      await this.audit.write({
+        actorRole: 'ADMIN',
+        action: AuditActions.ORDER_FORCE_CANCEL,
+        targetType: 'Order',
+        targetId: id,
+        metadata: { beforeStatus: existing.status, afterStatus: 'CANCELLED' },
+      });
+    }
     return this.detail(id);
   }
 
@@ -71,6 +86,14 @@ export class AdminOrdersService {
         },
       });
     }
+
+    await this.audit.write({
+      actorRole: 'ADMIN',
+      action: AuditActions.ORDER_FORCE_REFUND,
+      targetType: 'Order',
+      targetId: id,
+      metadata: { beforeStatus: order.status, afterStatus: 'REFUNDED' },
+    });
 
     return this.detail(id);
   }

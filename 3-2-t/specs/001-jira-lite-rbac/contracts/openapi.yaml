@@ -1,0 +1,632 @@
+openapi: 3.1.0
+info:
+  title: Jira Lite API
+  version: 0.1.0
+  description: >-
+    Multi-tenant project and issue tracking API with strict RBAC scopes,
+    workflow transitions, read-only policies, and auditability.
+servers:
+  - url: /api
+security:
+  - cookieSession: []
+tags:
+  - name: Auth
+  - name: Invites
+  - name: Organizations
+  - name: Projects
+  - name: Issues
+  - name: Workflows
+  - name: Sprints
+  - name: Audit
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email/password and create session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current session
+      responses:
+        '200':
+          description: Logout success
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invites/{token}/accept:
+    post:
+      tags: [Invites]
+      summary: Accept organization invite
+      parameters:
+        - $ref: '#/components/parameters/Token'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInviteRequest'
+      responses:
+        '200':
+          description: Invite accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptInviteResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /orgs:
+    get:
+      tags: [Organizations]
+      summary: List current user's organizations
+      responses:
+        '200':
+          description: Organizations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /orgs/{orgId}/projects:
+    get:
+      tags: [Organizations]
+      summary: List projects in organization
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orgs/{orgId}/projects/create:
+    post:
+      tags: [Organizations]
+      summary: Create project in organization (Org Admin)
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '200':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/issues:
+    get:
+      tags: [Issues]
+      summary: List issues with sort
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created_at, updated_at]
+      responses:
+        '200':
+          description: Issues list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Issue'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/issues/create:
+    post:
+      tags: [Issues]
+      summary: Create issue
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIssueRequest'
+      responses:
+        '200':
+          description: Issue created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/issues/{issueKey}:
+    patch:
+      tags: [Issues]
+      summary: Update issue fields with optimistic concurrency
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/IssueKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIssueRequest'
+      responses:
+        '200':
+          description: Issue updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /projects/{projectId}/issues/{issueKey}/transition:
+    post:
+      tags: [Issues]
+      summary: Transition issue status
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/IssueKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionIssueRequest'
+      responses:
+        '200':
+          description: Issue transitioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/workflows:
+    put:
+      tags: [Workflows]
+      summary: Update workflow and create new version (Project Manager)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowRequest'
+      responses:
+        '200':
+          description: Workflow updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/archive:
+    post:
+      tags: [Projects]
+      summary: Archive project (irreversible)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Project archived
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/sprints:
+    post:
+      tags: [Sprints]
+      summary: Create sprint (Scrum)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSprintRequest'
+      responses:
+        '200':
+          description: Sprint created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sprint'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/issues/{issueKey}/comments:
+    post:
+      tags: [Issues]
+      summary: Add issue comment
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/IssueKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCommentRequest'
+      responses:
+        '200':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueComment'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orgs/{orgId}/audit:
+    get:
+      tags: [Audit]
+      summary: Query organization audit log
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /platform/audit:
+    get:
+      tags: [Audit]
+      summary: Query platform audit log (Platform Admin)
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: sid
+
+  parameters:
+    Token:
+      name: token
+      in: path
+      required: true
+      schema: { type: string }
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      schema: { type: string }
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string }
+    IssueKey:
+      name: issueKey
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            default:
+              value: { code: UNAUTHORIZED, message: Authentication required }
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            insufficient:
+              value: { code: FORBIDDEN, message: Permission denied }
+            orgSuspended:
+              value: { code: ORG_SUSPENDED, message: Organization is suspended (read-only) }
+            projectArchived:
+              value: { code: PROJECT_ARCHIVED, message: Project is archived (read-only) }
+            deprecatedStatus:
+              value: { code: ISSUE_STATUS_DEPRECATED, message: Issue status is deprecated }
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            default:
+              value: { code: NOT_FOUND, message: Resource not found }
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            stale:
+              value: { code: CONFLICT, message: Resource was modified by another request }
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    SessionUser:
+      type: object
+      required: [userId, email]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+
+    AcceptInviteRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 8
+          description: Required only when invited email has no existing account.
+
+    AcceptInviteResponse:
+      type: object
+      required: [organizationId, joined]
+      properties:
+        organizationId: { type: string }
+        joined: { type: boolean }
+        autoLogin: { type: boolean }
+
+    OrganizationSummary:
+      type: object
+      required: [id, name, plan, status]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        plan: { type: string, enum: [free, paid] }
+        status: { type: string, enum: [active, suspended] }
+
+    ProjectSummary:
+      type: object
+      required: [id, organizationId, key, name, type, status]
+      properties:
+        id: { type: string }
+        organizationId: { type: string }
+        key: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [scrum, kanban] }
+        status: { type: string, enum: [active, archived] }
+
+    CreateProjectRequest:
+      type: object
+      required: [key, name, type]
+      properties:
+        key: { type: string, pattern: '^[A-Z][A-Z0-9]{1,9}$' }
+        name: { type: string, minLength: 1 }
+        type: { type: string, enum: [scrum, kanban] }
+
+    Issue:
+      type: object
+      required: [id, projectId, issueKey, type, title, priority, statusId, reporterUserId, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        issueKey: { type: string }
+        type: { type: string, enum: [story, task, bug, epic] }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        statusId: { type: string }
+        reporterUserId: { type: string }
+        assigneeUserId: { type: string, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        estimate: { type: number, nullable: true }
+        labels:
+          type: array
+          items: { type: string }
+        sprintId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateIssueRequest:
+      type: object
+      required: [type, title, priority]
+      properties:
+        type: { type: string, enum: [story, task, bug, epic] }
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        assigneeUserId: { type: string }
+        labels:
+          type: array
+          items: { type: string }
+        dueDate: { type: string, format: date }
+        estimate: { type: number }
+
+    UpdateIssueRequest:
+      type: object
+      required: [updatedAt]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        assigneeUserId: { type: string, nullable: true }
+        labels:
+          type: array
+          items: { type: string }
+        dueDate: { type: string, format: date, nullable: true }
+        estimate: { type: number, nullable: true }
+        updatedAt:
+          type: string
+          format: date-time
+          description: Concurrency token from last read.
+
+    TransitionIssueRequest:
+      type: object
+      required: [toStatusId, updatedAt]
+      properties:
+        toStatusId: { type: string }
+        updatedAt: { type: string, format: date-time }
+
+    UpdateWorkflowRequest:
+      type: object
+      required: [name, statuses, transitions]
+      properties:
+        name: { type: string }
+        statuses:
+          type: array
+          items:
+            type: object
+            required: [key, name, position]
+            properties:
+              key: { type: string }
+              name: { type: string }
+              position: { type: integer, minimum: 0 }
+        transitions:
+          type: array
+          items:
+            type: object
+            required: [fromStatusKey, toStatusKey]
+            properties:
+              fromStatusKey: { type: string }
+              toStatusKey: { type: string }
+
+    CreateSprintRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        goal: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+
+    Sprint:
+      type: object
+      required: [id, projectId, name, status]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        name: { type: string }
+        goal: { type: string, nullable: true }
+        startDate: { type: string, format: date, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [planned, active, closed] }
+
+    AddCommentRequest:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1 }
+
+    IssueComment:
+      type: object
+      required: [id, issueId, authorUserId, body, createdAt]
+      properties:
+        id: { type: string }
+        issueId: { type: string }
+        authorUserId: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    AuditEntry:
+      type: object
+      required: [id, actorEmail, action, entityType, entityId, createdAt]
+      properties:
+        id: { type: string }
+        organizationId: { type: string, nullable: true }
+        projectId: { type: string, nullable: true }
+        actorUserId: { type: string, nullable: true }
+        actorEmail: { type: string, format: email }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        before: { type: object, additionalProperties: true, nullable: true }
+        after: { type: object, additionalProperties: true, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        traceId: { type: string }

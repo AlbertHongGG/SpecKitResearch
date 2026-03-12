@@ -1,23 +1,52 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-const ACCESS_COOKIE = 'tl_access';
+import { getSessionFromCookieHeader } from '@/lib/auth/session';
 
-export function middleware(request: NextRequest) {
-    const { pathname, search } = request.nextUrl;
+function isSafeNextPath(path: string | null): path is string {
+  return !!path && path.startsWith('/') && !path.startsWith('//');
+}
 
-    const isProtected = pathname.startsWith('/projects');
-    if (!isProtected) return NextResponse.next();
+export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
 
-    const hasAccess = request.cookies.get(ACCESS_COOKIE)?.value;
-    if (hasAccess) return NextResponse.next();
+  const isAuthPage = pathname === '/login' || pathname === '/register';
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const isProtectedRoute = pathname === '/keys' || pathname.startsWith('/keys/') || pathname === '/docs' || pathname.startsWith('/docs/') || isAdminRoute;
 
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = '/login';
-    loginUrl.searchParams.set('returnTo', `${pathname}${search}`);
-    return NextResponse.redirect(loginUrl);
+  if (!isAuthPage && !isProtectedRoute) {
+    return NextResponse.next();
+  }
+
+  const session = await getSessionFromCookieHeader(request.headers.get('cookie'));
+
+  if (!session && isProtectedRoute) {
+    const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('next', next);
+    return NextResponse.redirect(url);
+  }
+
+  if (session && isAdminRoute && session.role !== 'admin') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/403';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  if (session && isAuthPage) {
+    const next = request.nextUrl.searchParams.get('next');
+
+    const url = request.nextUrl.clone();
+    url.pathname = isSafeNextPath(next) ? next : '/keys';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-    matcher: ['/projects/:path*'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
 };

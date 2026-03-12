@@ -1,0 +1,6 @@
+node_modules/
+dist/
+coverage/
+*.logdist/
+node_modules/
+coverage/

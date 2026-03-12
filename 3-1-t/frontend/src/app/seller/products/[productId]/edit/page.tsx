@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/form/Button';
 import { Input } from '@/components/ui/form/Input';
+import { Select } from '@/components/ui/form/Select';
+import { useRolePageGuard } from '@/lib/routing/useRolePageGuard';
 import { sellerProductsApi } from '@/services/seller/products/api';
 
 type FormValues = {
@@ -16,6 +18,7 @@ type FormValues = {
 };
 
 export default function EditSellerProductPage() {
+  const guard = useRolePageGuard('SELLER');
   const params = useParams<{ productId: string }>();
   const router = useRouter();
   const {
@@ -23,6 +26,10 @@ export default function EditSellerProductPage() {
     handleSubmit,
     formState: { isSubmitting },
   } = useForm<FormValues>();
+
+  if (!guard.allowed) {
+    return <main className="mx-auto max-w-md px-6 py-10">{guard.message}</main>;
+  }
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-6 py-10">
@@ -42,6 +49,12 @@ export default function EditSellerProductPage() {
           {...register('priceCents', { valueAsNumber: true })}
         />
         <Input label="Stock" type="number" {...register('stock', { valueAsNumber: true })} />
+        <Select label="Status" {...register('status')}>
+          <option value="">Keep current status</option>
+          <option value="DRAFT">DRAFT</option>
+          <option value="ACTIVE">ACTIVE</option>
+          <option value="INACTIVE">INACTIVE</option>
+        </Select>
         <Button type="submit" loading={isSubmitting}>
           Save
         </Button>

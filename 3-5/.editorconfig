@@ -6,9 +6,10 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.md]
-trim_trailing_whitespace = false
-
-[*.{js,jsx,ts,tsx,json,yaml,yml}]
+[*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}]
 indent_style = space
 indent_size = 2
+
+[*.py]
+indent_style = space
+indent_size = 4

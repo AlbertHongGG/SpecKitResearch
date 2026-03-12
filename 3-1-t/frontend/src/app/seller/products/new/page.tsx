@@ -5,17 +5,23 @@ import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/form/Button';
 import { Input } from '@/components/ui/form/Input';
+import { useRolePageGuard } from '@/lib/routing/useRolePageGuard';
 import { sellerProductsApi } from '@/services/seller/products/api';
 
 type FormValues = { name: string; description: string; priceCents: number; stock: number };
 
 export default function NewSellerProductPage() {
+  const guard = useRolePageGuard('SELLER');
   const router = useRouter();
   const {
     register,
     handleSubmit,
     formState: { isSubmitting },
   } = useForm<FormValues>();
+
+  if (!guard.allowed) {
+    return <main className="mx-auto max-w-md px-6 py-10">{guard.message}</main>;
+  }
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-6 py-10">

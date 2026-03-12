@@ -1,6 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/form/Button';
@@ -11,11 +12,14 @@ type FormValues = { email: string; password: string };
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const {
     register,
     handleSubmit,
     formState: { isSubmitting, errors },
   } = useForm<FormValues>();
+  const returnTo = searchParams.get('returnTo') || '/';
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-6 py-10">
@@ -24,7 +28,9 @@ export default function LoginPage() {
         className="space-y-3"
         onSubmit={handleSubmit(async (values) => {
           await apiRequest('/auth/login', { method: 'POST', body: JSON.stringify(values) });
-          router.push('/');
+          await queryClient.invalidateQueries({ queryKey: ['session'] });
+          router.replace(returnTo);
+          router.refresh();
         })}
       >
         <Input label="Email" type="email" {...register('email', { required: true })} />

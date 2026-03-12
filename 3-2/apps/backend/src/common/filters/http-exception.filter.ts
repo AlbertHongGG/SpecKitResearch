@@ -69,6 +69,9 @@ export class HttpErrorFilter implements ExceptionFilter {
       },
     };
 
+    // eslint-disable-next-line no-console
+    console.error('[UNHANDLED_EXCEPTION]', { requestId, exception });
+
     res.status(500).json(body);
   }
 }

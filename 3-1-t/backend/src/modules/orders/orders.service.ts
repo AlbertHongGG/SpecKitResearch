@@ -5,13 +5,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+import { AuditActions } from '../../common/audit/audit-actions';
+import { AuditService } from '../../common/audit/audit.service';
 import type { CurrentUser } from '../../auth/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { aggregateOrderStatus } from './order-aggregation';
+import { assertSubOrderTransition } from './suborder-state';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private assertUser(
     user: CurrentUser | undefined,
@@ -89,6 +95,66 @@ export class OrdersService {
         : []),
     ]);
 
-    return { ok: true };
+    await this.auditService.write({
+      actorId: user.id,
+      actorRole: 'BUYER',
+      action: AuditActions.ORDER_CANCEL,
+      targetType: 'Order',
+      targetId: order.id,
+      metadata: {
+        beforeStatus: order.status,
+        paymentStatus: payment?.status ?? null,
+      },
+    });
+
+    return this.getOrder(user, order.id);
+  }
+
+  async confirmDelivered(
+    user: CurrentUser | undefined,
+    orderId: string,
+    subOrderId: string,
+  ) {
+    this.assertUser(user);
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, buyerId: user.id },
+      include: { subOrders: true, payments: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const subOrder = order.subOrders.find((item) => item.id === subOrderId);
+    if (!subOrder) throw new NotFoundException('SubOrder not found');
+
+    assertSubOrderTransition(subOrder.status, 'DELIVERED');
+
+    const nextSubOrderStatuses = order.subOrders.map((item) =>
+      item.id === subOrderId ? 'DELIVERED' : item.status,
+    );
+    const nextOrderStatus = aggregateOrderStatus({
+      paymentStatus: order.payments[0]?.status,
+      subOrderStatuses: nextSubOrderStatuses,
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.subOrder.update({
+        where: { id: subOrder.id },
+        data: { status: 'DELIVERED' },
+      }),
+      this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: nextOrderStatus },
+      }),
+    ]);
+
+    await this.auditService.write({
+      actorId: user.id,
+      actorRole: 'BUYER',
+      action: AuditActions.ORDER_DELIVER,
+      targetType: 'SubOrder',
+      targetId: subOrder.id,
+      metadata: { orderId: order.id, from: subOrder.status, to: 'DELIVERED' },
+    });
+
+    return this.getSubOrder(user, order.id, subOrder.id);
   }
 }

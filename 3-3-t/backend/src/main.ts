@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
-import cookieParser from 'cookie-parser';
-import session from 'express-session';
+import * as cookieParser from 'cookie-parser';
+import * as session from 'express-session';
 import { AppModule } from './modules/app.module';
 import { HttpExceptionFilter } from './common/errors/http-exception.filter';
 import { tracingMiddleware } from './common/observability/tracing.middleware';
@@ -26,7 +26,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: appConfig.frontendOrigin,
+    origin: appConfig.frontendOrigins,
     credentials: true,
   });
 

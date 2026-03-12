@@ -3,7 +3,7 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.plan` command.
 
 ## Summary
 
@@ -31,7 +31,16 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+**Required Gates (NON-NEGOTIABLE)**
+
+- **Correctness & Consistency**: State transitions have explicit preconditions/postconditions; no race conditions introduced.
+- **Contracts**: Frontend/backend/shared integrations have explicit request/response schema + error semantics.
+- **Rollback/Compensation**: Any write/cross-system operation defines rollback or compensation and how to verify recovery.
+- **Testing**: Core domain rules have tests covering happy path, edge cases, and failures; test omissions require explicit risk note.
+- **Observability**: Failures are logged; request/trace id strategy is defined; user vs developer error messaging separated.
+- **Security**: Authn/authz enforced server-side; sensitive data handling reviewed.
+- **Performance/Scale**: Growth assumptions stated; avoid unnecessary blocking and pathological complexity.
+- **Compatibility**: Breaking changes are identified; migration and versioning plan exists.
 
 ## Project Structure
 

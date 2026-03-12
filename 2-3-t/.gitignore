@@ -1,40 +1,12 @@
-# Node / JS / TS
 node_modules/
-.pnpm-store/
-
-# Builds
-.next/
 dist/
 build/
-out/
-
-# Logs
+.next/
+coverage/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Env
 .env
 .env.*
-
-# Coverage
-coverage/
-
-# Prisma / DB artifacts
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-prisma/*.db
-
-# OS / Editor
+data/
 .DS_Store
-Thumbs.db
-*.swp
-*.tmp
+.vscode/
 .idea/
-
-# TypeScript
-*.tsbuildinfo

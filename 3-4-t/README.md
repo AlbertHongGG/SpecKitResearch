@@ -35,9 +35,9 @@ npm run dev:worker
 npm run dev
 ```
 
-前端預設：`http://localhost:3000`
-後端預設：`http://localhost:3001`
-Receiver：`http://localhost:4000`
+前端預設：`http://localhost:5174`
+後端預設：`http://localhost:4000`
+Receiver：`http://localhost:4001`
 
 Seed 預設帳密：
 - developer：`dev@example.com` / `password123`

@@ -95,6 +95,56 @@
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
+### Data Contract & API Semantics *(mandatory if feature has frontend/backend or external integration)*
+
+<!--
+  ACTION REQUIRED: Define the contract BEFORE implementation.
+  Provide at minimum: request schema, response schema, and error semantics.
+-->
+
+- **Contract**: [Endpoint/event name] request: [schema/type summary]
+- **Contract**: [Endpoint/event name] response: [schema/type summary]
+- **Errors**: [error codes] → [meaning] → [client handling]
+
+### State Transitions & Invariants *(mandatory if feature changes state/data)*
+
+<!--
+  ACTION REQUIRED: Explicitly define preconditions/postconditions.
+  Do NOT invent business rules; mark unclear items as NEEDS CLARIFICATION.
+-->
+
+- **Invariant**: [Rule that must always hold]
+- **Transition**: Given [preconditions], when [action], then [postconditions + verification]
+
+### Failure Modes & Recovery *(mandatory)*
+
+- **Failure mode**: [What can fail: external system, DB, network, validation]
+- **Recovery**: [rollback/compensation strategy + how to verify recovery]
+
+### Security & Permissions *(mandatory)*
+
+- **Authentication**: [required / not required + rationale]
+- **Authorization**: [roles/permissions model + server-side enforcement]
+- **Sensitive data**: [what is sensitive + how it is protected/omitted from responses]
+
+### Observability *(mandatory)*
+
+- **Logging**: [what events/errors are logged]
+- **Tracing**: [request id / trace id propagation]
+- **User-facing errors**: [messages/actionability]
+- **Developer diagnostics**: [internal error codes/details]
+
+### Backward Compatibility & Change Risk *(mandatory)*
+
+- **Breaking change?**: [Yes/No]
+- **Migration plan**: [steps]
+- **Rollback plan**: [steps]
+
+### Performance & Scale Assumptions *(mandatory)*
+
+- **Growth assumption**: [data volume/users/traffic]
+- **Constraints**: [latency/throughput targets or NEEDS CLARIFICATION]
+
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]

@@ -68,7 +68,7 @@ app.all('/webhook', async (request) => {
 });
 
 const host = process.env.HOST ?? '0.0.0.0';
-const port = Number(process.env.PORT ?? 4000);
+const port = Number(process.env.PORT ?? 4001);
 
 await app.listen({ host, port });
 

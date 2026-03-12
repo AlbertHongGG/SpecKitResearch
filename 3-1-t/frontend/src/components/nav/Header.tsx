@@ -1,17 +1,36 @@
 'use client';
 
+import { startTransition, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 
+import { apiRequest } from '@/services/api/client';
 import { useSession } from '@/services/auth/useSession';
 
 function roleLinks(roles: string[]) {
   const links = [{ href: '/orders', label: 'My Orders' }];
 
+  if (!roles.includes('SELLER')) {
+    links.push({ href: '/seller/apply', label: 'Become a Seller' });
+  }
+
   if (roles.includes('SELLER')) {
-    links.push({ href: '/seller/products', label: 'Seller' });
+    links.push(
+      { href: '/seller/products', label: 'Seller Products' },
+      { href: '/seller/orders', label: 'Seller Orders' },
+      { href: '/seller/settlements', label: 'Settlements' },
+    );
   }
   if (roles.includes('ADMIN')) {
-    links.push({ href: '/admin/analytics', label: 'Admin' });
+    links.push(
+      { href: '/admin/analytics', label: 'Analytics' },
+      { href: '/admin/seller-applications', label: 'Seller Reviews' },
+      { href: '/admin/categories', label: 'Categories' },
+      { href: '/admin/orders', label: 'Admin Orders' },
+      { href: '/admin/refunds', label: 'Refunds' },
+      { href: '/admin/disputes', label: 'Disputes' },
+    );
   }
 
   return links.filter(
@@ -20,8 +39,11 @@ function roleLinks(roles: string[]) {
 }
 
 export function Header() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data, isLoading } = useSession();
   const user = data?.user ?? null;
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   return (
     <header className="border-b border-black/10 bg-white">
@@ -33,11 +55,34 @@ export function Header() {
           <Link href="/search">Search</Link>
           <Link href="/cart">Cart</Link>
           {isLoading ? null : user ? (
-            roleLinks(user.roles).map((link) => (
-              <Link key={link.href} href={link.href}>
-                {link.label}
-              </Link>
-            ))
+            <>
+              {roleLinks(user.roles).map((link) => (
+                <Link key={link.href} href={link.href}>
+                  {link.label}
+                </Link>
+              ))}
+              <button
+                className="rounded border border-black/15 px-3 py-1"
+                disabled={isLoggingOut}
+                onClick={async () => {
+                  setIsLoggingOut(true);
+
+                  try {
+                    await apiRequest('/auth/logout', { method: 'POST' });
+                    await queryClient.invalidateQueries({ queryKey: ['session'] });
+                    await queryClient.invalidateQueries({ queryKey: ['cart'] });
+                    startTransition(() => {
+                      router.push('/');
+                      router.refresh();
+                    });
+                  } finally {
+                    setIsLoggingOut(false);
+                  }
+                }}
+              >
+                {isLoggingOut ? 'Signing out...' : 'Logout'}
+              </button>
+            </>
           ) : (
             <>
               <Link href="/login">Login</Link>

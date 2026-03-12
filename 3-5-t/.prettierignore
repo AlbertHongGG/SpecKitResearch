@@ -1,8 +1,19 @@
 node_modules/
+.pnpm-store/
+.next/
 dist/
 build/
-.next/
+out/
 coverage/
-*.log
-data/
+
+# Lockfiles
+package-lock.json
+yarn.lock
 pnpm-lock.yaml
+
+# Prisma output
+apps/api/prisma/migrations/
+
+# Env
+.env
+.env.*

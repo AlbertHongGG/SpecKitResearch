@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { RequestWithUser } from '../auth/session.guard.js';
+import { logAuthzDenied } from '../logging/security-log.js';
 import { throwForbidden, throwNotFound } from '../rbac/existence-strategy.js';
 
 @Injectable()
@@ -22,10 +23,24 @@ export class OrgRoleGuard implements CanActivate {
     });
 
     if (!membership || membership.status !== 'active') {
+      logAuthzDenied({
+        requestId: (req as any).requestId,
+        userId,
+        orgId,
+        reason: 'not_member',
+        route: (req as any).originalUrl,
+      });
       throwNotFound();
     }
 
     if (membership.orgRole !== 'org_admin') {
+      logAuthzDenied({
+        requestId: (req as any).requestId,
+        userId,
+        orgId,
+        reason: 'insufficient_role',
+        route: (req as any).originalUrl,
+      });
       throwForbidden('Org admin role required');
     }
 

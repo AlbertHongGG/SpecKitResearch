@@ -1,12 +1,10 @@
-# 2-3 Development Guidelines
+# 3-5 Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-02-04
+Auto-generated from all feature plans. Last updated: 2026-03-07
 
 ## Active Technologies
-- TypeScript（Node.js 20+；前端同 TypeScript） (001-trello-lite-board)
-- SQLite（單檔）+ Prisma (001-trello-lite-board)
 
-- TypeScript（Node.js 20+；前端/後端皆 TS） (001-trello-lite-board)
+- TypeScript（Frontend/Backend 共用） + Next.js App Router、Tailwind CSS、TanStack Query、React Hook Form、Zod（前端）；NestJS（Fastify adapter）、Zod（DTO 驗證）、Prisma（後端） (001-api-platform-keys)
 
 ## Project Structure
 
@@ -21,31 +19,11 @@ npm test && npm run lint
 
 ## Code Style
 
-TypeScript（Node.js 20+；前端/後端皆 TS）: Follow standard conventions
+TypeScript（Frontend/Backend 共用）: Follow standard conventions
 
 ## Recent Changes
-- 001-trello-lite-board: Added TypeScript（Node.js 20+；前端同 TypeScript）
 
-- 001-trello-lite-board: Added TypeScript（Node.js 20+；前端/後端皆 TS）
+- 001-api-platform-keys: Added TypeScript（Frontend/Backend 共用） + Next.js App Router、Tailwind CSS、TanStack Query、React Hook Form、Zod（前端）；NestJS（Fastify adapter）、Zod（DTO 驗證）、Prisma（後端）
 
 <!-- MANUAL ADDITIONS START -->
-## Trello Lite (001-trello-lite-board)
-
-**Intended structure**
-
-```text
-backend/
-frontend/
-```
-
-**Key concerns**
-
-- Sorting consistency: server authoritative ordering (`Task.position` fractional indexing) + optimistic concurrency (`Task.version`)
-- Realtime: SSE project event stream + snapshot/backfill on reconnect
-- Audit: append-only Activity Log for all key writes
-
-**Suggested commands (when implemented)**
-
-- Backend: `npm run dev` / `npm test`
-- Frontend: `npm run dev` / `npm test`
 <!-- MANUAL ADDITIONS END -->

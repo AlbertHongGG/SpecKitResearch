@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useSession } from '@/features/auth/useSession';
 import { sanitizeReturnTo } from '@/lib/routing/returnTo';
 import { LoadingState } from '@/components/PageStates';
+import { Nav } from '@/components/Nav';
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const session = useSession();
@@ -23,5 +24,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   if (session.isLoading) return <LoadingState />;
 
   // If 401, effect will redirect. For other errors, let page handle.
-  return <>{children}</>;
+  return (
+    <>
+      <Nav />
+      {children}
+    </>
+  );
 }

@@ -1,38 +1,45 @@
-# Trello Lite
+# API Platform & Key Management System
 
-本 repo 實作一個「Trello Lite」多人協作看板（Next.js + Fastify + SQLite/Prisma + SSE）。
+Monorepo workspace:
 
-## 開發環境需求
+- Backend: NestJS (Fastify)
+- Frontend: Next.js App Router
 
-- Node.js 20+
-- npm（或你偏好的套件管理器；本 repo 目前以 npm lockfile 為主）
+## Prerequisites
 
-## 快速啟動
+- Node.js (LTS recommended)
+- pnpm
 
-### 1) Backend
+## Local setup
 
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run prisma:migrate
-npm run seed
-npm run dev
-```
+Install dependencies from repo root:
 
-Backend 預設啟動在 `http://localhost:3000`。
+- `pnpm install`
 
-### 2) Frontend
+Create env files:
 
-```bash
-cd frontend
-npm install
-cp .env.local.example .env.local
-npm run dev
-```
+- Backend: copy `backend/.env.example` to `backend/.env`
+- Frontend: copy `frontend/.env.example` to `frontend/.env.local`
 
-Frontend 預設啟動在 `http://localhost:5173`。
+## Run locally
 
-## Specs
+In two terminals:
 
-設計文件與任務清單在 `specs/001-trello-lite-board/`。
+1) Backend (port 3000):
+
+- `DATABASE_URL="file:./dev.db" PORT=3000 NODE_ENV=development pnpm -C backend start:dev`
+
+2) Frontend (port 5173):
+
+- `NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 pnpm -C frontend dev`
+
+Allowed local frontend origins for backend CORS:
+
+- `http://localhost:5173`
+- `http://localhost:5174`
+
+## Tests
+
+- All tests: `pnpm test`
+- Unit tests: `pnpm test:unit`
+- E2E tests: `pnpm test:e2e`

@@ -19,6 +19,26 @@ async function main() {
     include: { platformRole: true },
   });
 
+  await prisma.user.upsert({
+    where: { email: 'user@example.com' },
+    update: {},
+    create: {
+      email: 'user@example.com',
+      passwordHash,
+      displayName: 'Regular User',
+    },
+  });
+
+  const viewerUser = await prisma.user.upsert({
+    where: { email: 'viewer@example.com' },
+    update: {},
+    create: {
+      email: 'viewer@example.com',
+      passwordHash,
+      displayName: 'Viewer User',
+    },
+  });
+
   const org = await prisma.organization.create({
     data: {
       name: 'Demo Org',
@@ -34,7 +54,7 @@ async function main() {
     },
   });
 
-  const project = await prisma.project.create({
+  const projectKanban = await prisma.project.create({
     data: {
       organizationId: org.id,
       key: 'PROJ',
@@ -70,33 +90,92 @@ async function main() {
     include: { workflows: { include: { statuses: true } } },
   });
 
-  // Add default transitions for workflow
-  const wf = project.workflows[0];
-  const byKey = Object.fromEntries(wf.statuses.map((s) => [s.key, s] as const));
-
-  await prisma.workflowTransition.deleteMany({ where: { workflowId: wf.id } });
-  await prisma.workflowTransition.createMany({
-    data: [
-      {
-        workflowId: wf.id,
-        fromStatusId: byKey.todo.id,
-        toStatusId: byKey.in_progress.id,
+  const projectScrum = await prisma.project.create({
+    data: {
+      organizationId: org.id,
+      key: 'SCRUM',
+      name: 'Scrum Project',
+      type: 'scrum',
+      status: 'active',
+      createdByUserId: user.id,
+      memberships: {
+        create: {
+          userId: user.id,
+          projectRole: 'project_manager',
+        },
       },
-      {
-        workflowId: wf.id,
-        fromStatusId: byKey.in_progress.id,
-        toStatusId: byKey.done.id,
+      issueCounter: {
+        create: { nextNumber: 0 },
       },
-      {
-        workflowId: wf.id,
-        fromStatusId: byKey.todo.id,
-        toStatusId: byKey.done.id,
+      workflows: {
+        create: {
+          name: 'Default',
+          version: 1,
+          isActive: true,
+          createdByUserId: user.id,
+          statuses: {
+            create: [
+              { key: 'todo', name: 'To Do', position: 1 },
+              { key: 'in_progress', name: 'In Progress', position: 2 },
+              { key: 'done', name: 'Done', position: 3 },
+            ],
+          },
+        },
       },
-    ],
+    },
+    include: { workflows: { include: { statuses: true } } },
   });
 
+  await prisma.organizationMembership.create({
+    data: {
+      organizationId: org.id,
+      userId: viewerUser.id,
+      orgRole: 'org_member',
+    },
+  });
+
+  await prisma.projectMembership.create({
+    data: {
+      projectId: projectKanban.id,
+      userId: viewerUser.id,
+      projectRole: 'viewer',
+    },
+  });
+
+  // Add default transitions for workflow
+  for (const project of [projectKanban, projectScrum]) {
+    const wf = project.workflows[0];
+    const byKey = Object.fromEntries(wf.statuses.map((s) => [s.key, s] as const));
+
+    await prisma.workflowTransition.deleteMany({ where: { workflowId: wf.id } });
+    await prisma.workflowTransition.createMany({
+      data: [
+        {
+          workflowId: wf.id,
+          fromStatusId: byKey.todo.id,
+          toStatusId: byKey.in_progress.id,
+        },
+        {
+          workflowId: wf.id,
+          fromStatusId: byKey.in_progress.id,
+          toStatusId: byKey.done.id,
+        },
+        {
+          workflowId: wf.id,
+          fromStatusId: byKey.todo.id,
+          toStatusId: byKey.done.id,
+        },
+      ],
+    });
+  }
+
   // eslint-disable-next-line no-console
-  console.log({ user: user.email, orgId: org.id, projectId: project.id });
+  console.log({
+    user: user.email,
+    orgId: org.id,
+    projectKanbanId: projectKanban.id,
+    projectScrumId: projectScrum.id,
+  });
 }
 
 main()

@@ -3,10 +3,12 @@
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 
+import { useRolePageGuard } from '@/lib/routing/useRolePageGuard';
 import { sellerOrdersApi } from '@/services/seller/orders/api';
 import { sellerRefundsApi } from '@/services/seller/refunds/api';
 
 export default function SellerOrderDetailPage() {
+  const guard = useRolePageGuard('SELLER');
   const params = useParams<{ subOrderId: string }>();
   const subOrderId = params.subOrderId;
 
@@ -16,6 +18,10 @@ export default function SellerOrderDetailPage() {
   });
 
   const order = data as { id?: string; status?: string } | undefined;
+
+  if (!guard.allowed) {
+    return <main className="mx-auto max-w-4xl px-6 py-10">{guard.message}</main>;
+  }
 
   return (
     <main className="mx-auto max-w-4xl space-y-4 px-6 py-10">

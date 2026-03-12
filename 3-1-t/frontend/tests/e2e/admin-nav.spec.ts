@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-test('admin nav pages smoke', async ({ page }) => {
+test('visitor cannot access admin pages', async ({ page }) => {
   await page.goto('/admin/analytics');
-  await expect(page.locator('body')).toContainText(/Admin Analytics/i);
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.locator('body')).toContainText(/Login/i);
 });

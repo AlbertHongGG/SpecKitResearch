@@ -1,24 +1,21 @@
-# Frontend (Next.js App Router)
+## Frontend
 
-## Prerequisites
+Development server:
 
-- Node.js 20+
+- `pnpm dev`
 
-## Setup
+Default local URL:
 
-```bash
-npm install
-cp .env.local.example .env.local
-```
+- `http://localhost:5173`
 
-`.env.local`：
+Required API base URL for local development:
 
-- `NEXT_PUBLIC_API_BASE_URL`（預設 backend `http://localhost:3000`）
+- `NEXT_PUBLIC_API_BASE_URL=http://localhost:3000`
 
-## Run
+Example:
 
 ```bash
-npm run dev
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 pnpm dev
 ```
 
-預設啟動在 `http://localhost:5173`。
+The server can also run on `http://localhost:5174` when you need a second local frontend origin for CORS testing.

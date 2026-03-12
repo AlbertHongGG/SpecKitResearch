@@ -12,6 +12,10 @@ export class AdminOverrideRepository {
     });
   }
 
+  getById(id: string) {
+    return this.prisma.adminOverride.findUnique({ where: { id } });
+  }
+
   force(organizationId: string, createdByUserId: string, forcedStatus: 'Suspended' | 'Expired', reason: string) {
     return this.prisma.adminOverride.create({
       data: { organizationId, createdByUserId, forcedStatus, reason },

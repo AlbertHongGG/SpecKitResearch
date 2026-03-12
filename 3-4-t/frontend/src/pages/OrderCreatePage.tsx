@@ -22,7 +22,7 @@ export function OrderCreatePage() {
   const [form, setForm] = useState<OrdersCreateRequest>({
     amount: 100,
     currency: 'TWD',
-    callback_url: 'http://localhost:4000/callback',
+    callback_url: 'http://localhost:4001/callback',
     webhook_url: null,
     payment_method_code: 'card',
     simulation_scenario_type: 'success' as SimulationScenarioType,

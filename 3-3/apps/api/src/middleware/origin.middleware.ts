@@ -3,14 +3,25 @@ import { AppError } from '../common/app-error';
 
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-export function originMiddleware(req: Request, _res: Response, next: NextFunction) {
+export function originMiddleware(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
   if (!STATE_CHANGING.has(req.method)) return next();
 
   // Allow webhooks (no cookies / no browser origin)
   if (req.path.startsWith('/webhooks/')) return next();
 
   const origin = req.header('origin');
-  const expected = process.env.APP_ORIGIN;
+  const allowedOrigins = new Set([
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ]);
+  for (const value of (process.env.APP_ORIGIN ?? '').split(',')) {
+    const parsed = value.trim();
+    if (parsed) allowedOrigins.add(parsed);
+  }
 
   const fetchSite = req.header('sec-fetch-site');
   const fetchMode = req.header('sec-fetch-mode');
@@ -21,7 +32,10 @@ export function originMiddleware(req: Request, _res: Response, next: NextFunctio
       message: 'Cross-site request blocked',
     });
   }
-  if (fetchMode && !['cors', 'same-origin', 'navigate'].includes(fetchMode.toLowerCase())) {
+  if (
+    fetchMode &&
+    !['cors', 'same-origin', 'navigate'].includes(fetchMode.toLowerCase())
+  ) {
     throw new AppError({
       errorCode: 'FORBIDDEN',
       status: 403,
@@ -29,7 +43,6 @@ export function originMiddleware(req: Request, _res: Response, next: NextFunctio
     });
   }
 
-  if (!expected) return next();
   if (!origin) {
     throw new AppError({
       errorCode: 'FORBIDDEN',
@@ -37,7 +50,7 @@ export function originMiddleware(req: Request, _res: Response, next: NextFunctio
       message: 'Missing Origin',
     });
   }
-  if (origin !== expected) {
+  if (!allowedOrigins.has(origin)) {
     throw new AppError({
       errorCode: 'FORBIDDEN',
       status: 403,

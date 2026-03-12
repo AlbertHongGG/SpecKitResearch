@@ -2,14 +2,20 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import { useRolePageGuard } from '@/lib/routing/useRolePageGuard';
 import { adminDisputesApi } from '@/services/admin/disputes/api';
 
 export default function AdminDisputesPage() {
+  const guard = useRolePageGuard('ADMIN');
   const { data, refetch } = useQuery({
     queryKey: ['admin-disputes'],
     queryFn: adminDisputesApi.list,
   });
   const disputes = (data as Array<{ id: string; status: string }> | undefined) ?? [];
+
+  if (!guard.allowed) {
+    return <main className="mx-auto max-w-5xl px-6 py-10">{guard.message}</main>;
+  }
 
   return (
     <main className="mx-auto max-w-5xl space-y-4 px-6 py-10">

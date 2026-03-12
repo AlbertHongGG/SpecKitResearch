@@ -13,10 +13,22 @@ import { requestIdMiddleware } from './middleware/request-id.middleware';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const appOrigin = process.env.APP_ORIGIN;
+  const defaultOrigins = new Set([
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ]);
+  for (const value of (process.env.APP_ORIGIN ?? '').split(',')) {
+    const origin = value.trim();
+    if (origin) defaultOrigins.add(origin);
+  }
+  const allowedOrigins = Array.from(defaultOrigins);
 
   app.enableCors({
-    origin: appOrigin,
+    origin: (origin, callback) => {
+      // Allow non-browser requests that don't send Origin.
+      if (!origin) return callback(null, true);
+      return callback(null, allowedOrigins.includes(origin));
+    },
     credentials: true,
     allowedHeaders: [
       'Content-Type',
@@ -38,7 +50,7 @@ async function bootstrap() {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const port = Number(process.env.API_PORT ?? process.env.PORT ?? 4000);
+  const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3000);
   await app.listen(port);
 }
 bootstrap();

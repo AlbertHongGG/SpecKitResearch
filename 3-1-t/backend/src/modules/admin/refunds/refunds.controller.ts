@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 
 import { AdminRefundsService } from './refunds.service';
 
@@ -12,8 +12,8 @@ export class AdminRefundsController {
   }
 
   @Post(':id/approve')
-  approve(@Param('id') id: string) {
-    return this.service.approve(id);
+  approve(@Param('id') id: string, @Body() body: { approvedCents?: number }) {
+    return this.service.approve(id, body.approvedCents);
   }
 
   @Post(':id/reject')
@@ -22,7 +22,10 @@ export class AdminRefundsController {
   }
 
   @Post(':id/force-refund')
-  forceRefund(@Param('id') id: string) {
-    return this.service.forceRefund(id);
+  forceRefund(
+    @Param('id') id: string,
+    @Body() body: { approvedCents?: number },
+  ) {
+    return this.service.forceRefund(id, body.approvedCents);
   }
 }

@@ -5,6 +5,7 @@
     "rootDir": ".",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "noEmit": false,
     "types": ["node"],
     "moduleResolution": "NodeNext",
     "module": "NodeNext"

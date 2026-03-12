@@ -15,8 +15,12 @@ async function upsertUser(email: string, password: string, roles: string[]) {
 async function main() {
   const admin = await upsertUser('admin@example.com', 'password123', ['admin']);
   const buyer = await upsertUser('buyer@example.com', 'password123', ['buyer']);
-  const seller1 = await upsertUser('seller1@example.com', 'password123', ['seller']);
-  const seller2 = await upsertUser('seller2@example.com', 'password123', ['seller']);
+  const seller1 = await upsertUser('seller1@example.com', 'password123', [
+    'seller',
+  ]);
+  const seller2 = await upsertUser('seller2@example.com', 'password123', [
+    'seller',
+  ]);
 
   const cat1 = await prisma.category.upsert({
     where: { name: 'Electronics' },
@@ -27,6 +31,14 @@ async function main() {
     where: { name: 'Books' },
     update: { status: 'active' },
     create: { name: 'Books', status: 'active' },
+  });
+
+  await prisma.product.deleteMany({
+    where: {
+      sellerId: {
+        in: [seller1.id, seller2.id],
+      },
+    },
   });
 
   await prisma.product.createMany({
@@ -60,7 +72,12 @@ async function main() {
   });
 
   // eslint-disable-next-line no-console
-  console.log('Seeded:', { admin: admin.email, buyer: buyer.email, seller1: seller1.email, seller2: seller2.email });
+  console.log('Seeded:', {
+    admin: admin.email,
+    buyer: buyer.email,
+    seller1: seller1.email,
+    seller2: seller2.email,
+  });
 }
 
 main()

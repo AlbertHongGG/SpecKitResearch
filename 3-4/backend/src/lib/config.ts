@@ -17,7 +17,7 @@ const envSchema = z.object({
     .transform((v) => v === 'true')
     .default('false'),
 
-  CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5174'),
 
   WEBHOOK_SIGNING_TOLERANCE_SEC: z.coerce.number().int().positive().default(300),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),

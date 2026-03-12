@@ -1,50 +1,139 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+
+- Version change: 未定義（模板占位符） → 1.0.0
+- Modified principles:
+	- 模板 Principle 1 佔位符 → I. 系統正確性與資料一致性（最高優先）
+	- 模板 Principle 2 佔位符 → II. 程式碼品質與架構邊界
+	- 模板 Principle 3 佔位符 → IV. 測試與驗證（不可省略）
+	- 模板 Principle 4 佔位符 → III. 前後端契約與 API 設計
+	- 模板 Principle 5 佔位符 → V. 錯誤處理、觀測性與除錯能力
+- Added sections:
+	- VI. 使用者體驗一致性（產品級）
+	- VII. 效能與擴充性（預設假設會成長）
+	- VIII. 安全性與權限控制（不可假設信任）
+	- IX. 變更風險與向下相容
+	- X. 原則優先順序（發生衝突時）
+	- XI. 輸出規範
+	- 工程與產品級標準（取代 SECTION_2）
+	- 開發流程與品質閘門（取代 SECTION_3）
+- Removed sections:
+	- 所有未具體化的占位符段落（仍保留原有標題階層）
+- Templates requiring updates:
+	- ✅ .specify/templates/plan-template.md
+	- ✅ .specify/templates/spec-template.md
+	- ✅ .specify/templates/tasks-template.md
+	- ✅ .specify/templates/checklist-template.md
+- Follow-up TODOs:
+	- TODO(RATIFICATION_DATE): 原始採納日期未提供，請補上以完成治理資訊
+-->
+
+# SpecKitReserch（真實上線之全端產品）憲章
+
+本專案為真實上線之全端產品。所有產出必須以可維運性、可擴充性與長期穩定性為前提。
+以下原則為強制性規範，未遵守者視為不合格輸出。
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. 系統正確性與資料一致性（最高優先）
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+- 不得產生資料不一致、狀態錯亂或競態條件的設計。
+- 所有狀態轉換必須定義明確前置條件（preconditions）與後置驗證（postconditions）。
+- 跨系統/前後端互動必須定義清楚的資料契約（Schema/型別），並以契約作為開發與測試依據。
+- 對可能失敗的操作，必須設計可回復機制（rollback/compensation），且在設計文件中明確說明。
+- 不得假設外部系統永遠可靠；必須設計逾時、重試策略、冪等性與降級行為（視情境適用）。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. 程式碼品質與架構邊界
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+- 嚴格分層：表現層（UI/View）、業務邏輯層（Domain/Use Case）、資料存取層（Repository/API/DB）。
+- 禁止將業務邏輯直接寫在 UI、Controller 或 API Handler 中；Handler 僅負責協調（orchestration）。
+- 每個模組必須具備單一責任與清楚的對外介面（公開 API/契約），依賴方向必須一致。
+- 命名必須可讀且具業務語意，禁止抽象或模糊命名（例如 data、info、temp 等）。
+- 禁止重複邏輯；遇到重複必須主動抽象與共用，並保持行為一致。
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. 前後端契約與 API 設計
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+- API 行為必須可預測，禁止隱含副作用與不透明的狀態變更。
+- 必須明確定義：請求格式、回傳格式、錯誤碼與錯誤語意（包含可供除錯的內部代碼）。
+- 前後端必須共享同一份資料模型或型別定義（概念層級即可），以降低契約漂移風險。
+- 禁止為了前端方便而破壞後端資料完整性；資料約束必須以後端與資料層為準。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. 測試與驗證（不可省略）
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- 核心業務邏輯必須有對應測試（至少單元測試；必要時加上整合/契約測試）。
+- 測試必須涵蓋：正常流程、邊界條件、錯誤與例外情境。
+- 測試目標是驗證行為與規則，而非僅驗證程式可執行。
+- 若測試成本過高而無法完整覆蓋，必須在規格/計畫中明確描述風險、原因與替代驗證方式，並提供回滾方案。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. 錯誤處理、觀測性與除錯能力
+
+- 所有失敗情境必須可被記錄（logging）且可被追蹤（request id/trace id）。
+- 錯誤訊息必須對使用者與開發者分層：使用者訊息清楚可行動、開發者訊息可定位問題。
+- 禁止吞掉錯誤或僅回傳模糊訊息；錯誤回應必須有一致格式。
+- 關鍵流程必須具備足夠的可觀測性（指標/日誌/追蹤），以支援維運與故障排除。
+
+### VI. 使用者體驗一致性（產品級）
+
+- 相同行為在所有頁面必須一致的操作模式與回饋。
+- 非同步操作必須明確呈現：載入中狀態、成功回饋、失敗處理。
+- 禁止讓使用者猜測系統狀態；重要操作必須避免誤觸與重複提交（防重/冪等/按鈕鎖定/確認對話框等）。
+
+### VII. 效能與擴充性（預設假設會成長）
+
+- 預設資料量、使用者數與流量會成長；設計需保留未來拆分與橫向擴充空間。
+- 禁止不必要的同步阻塞流程；對外呼叫與 IO 需考慮逾時、併發與背壓。
+- 避免非必要的 $O(n^2)$ 以上設計；需以量測或合理估算支持性能決策。
+- 不得為短期開發速度犧牲長期效能與可維運性。
+
+### VIII. 安全性與權限控制（不可假設信任）
+
+- 所有請求必須經過身份驗證與授權檢查（server-side enforcement）。
+- 前端驗證僅為 UX，不可作為安全依據。
+- 不得在前端或 API 回傳中暴露敏感資訊（包含內部識別碼、堆疊資訊、憑證、隱私資料）。
+- 權限判斷必須集中管理，不可散落於各處；需可審計、可測試。
+
+### IX. 變更風險與向下相容
+
+- 任何可能影響既有行為的修改必須明確標示與說明風險（包含資料遷移、回滾、相容性）。
+- API 與資料結構變更必須考量向下相容性；若為破壞性變更，需提供遷移計畫與版本策略。
+- 禁止在未說明風險的情況下引入破壞性變更。
+
+### X. 原則優先順序（發生衝突時）
+
+1. 資料正確性與系統一致性
+2. 可維運性與可理解性
+3. 安全性
+4. 效能
+5. 開發速度
+
+### XI. 輸出規範
+
+- 若需求不完整、存在矛盾或設計風險，必須先指出並釐清，再進行實作。
+- 不得自行補齊未明確定義的業務規則；需要時以 TODO/NEEDS CLARIFICATION 明確標記。
+- 所有說明與輸出一律使用正體中文。
+
+## 工程與產品級標準
+
+- 契約優先：任何前後端/跨服務互動，先定義資料契約（Schema/型別）再實作。
+- 可回復性：涉及資料寫入或跨系統操作，必須提供回滾/補償策略與可驗證的復原步驟。
+- 可觀測性：設計時即納入日誌、指標與追蹤需求；關鍵路徑需具備可定位問題的訊號。
+- 安全預設：預設不信任輸入與外部系統；授權判斷與敏感資料保護為必選項。
+- 可演進性：任何資料結構與 API 變更必須包含相容性、遷移與版本策略。
+
+## 開發流程與品質閘門
+
+- 規格先行：在 feature spec 中明確定義使用者情境、驗收案例、資料契約、錯誤語意、權限與回滾策略。
+- 設計可驗證：所有狀態轉換、邊界條件與失敗情境必須能以測試或明確檢核方式驗證。
+- 測試門檻：核心業務邏輯無測試不得合併；若例外，必須提供風險說明與替代驗證、並取得明確批准。
+- 觀測性門檻：關鍵流程必須具備 request/trace id 串接與一致錯誤格式；不得以模糊訊息掩蓋失敗。
+- 變更控管：涉及破壞性變更必須具備遷移計畫、回滾計畫、相容性策略與版本標示。
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- 本憲章優先於其他非正式慣例；任何產出（spec/plan/tasks/PR）皆必須符合本憲章。
+- 例外處理：如需違反憲章，必須在文件中列出違反條款、理由、替代方案、風險、緩解措施與回滾/補償方案。
+- 修憲流程：以 PR 方式提出，內容至少包含變更理由、影響範圍、遷移/回滾計畫與更新後的同步影響報告。
+- 版本政策：採語意化版本（SemVer）— 破壞性治理變更為 MAJOR；新增/擴增原則為 MINOR；文字釐清為 PATCH。
+- 稽核期待：所有規劃文件必須包含「Constitution Check」，且在開發完成前需再次檢核並回填結果。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): 請填入原始採納日期 | **Last Amended**: 2026-01-24

@@ -1,40 +1,38 @@
-# API Platform & Key Management System
+# Trello Lite
 
-Monorepo workspace:
+本 repo 實作一個「Trello Lite」多人協作看板（Next.js + Fastify + SQLite/Prisma + SSE）。
 
-- Backend: NestJS (Fastify)
-- Frontend: Next.js App Router
+## 開發環境需求
 
-## Prerequisites
+- Node.js 20+
+- npm（或你偏好的套件管理器；本 repo 目前以 npm lockfile 為主）
 
-- Node.js (LTS recommended)
-- pnpm
+## 快速啟動
 
-## Local setup
+### 1) Backend
 
-Install dependencies from repo root:
+```bash
+cd backend
+npm install
+cp .env.example .env
+npm run prisma:migrate
+npm run seed
+npm run dev
+```
 
-- `pnpm install`
+Backend 預設啟動在 `http://localhost:3000`。
 
-Create env files:
+### 2) Frontend
 
-- Backend: copy `backend/.env.example` to `backend/.env`
-- Frontend: copy `frontend/.env.example` to `frontend/.env.local`
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local
+npm run dev
+```
 
-## Run locally
+Frontend 預設啟動在 `http://localhost:5173`。
 
-In two terminals:
+## Specs
 
-1) Backend (port 3001):
-
-- `pnpm -C backend start:dev`
-
-2) Frontend (port 3000):
-
-- `pnpm -C frontend dev`
-
-## Tests
-
-- All tests: `pnpm test`
-- Unit tests: `pnpm test:unit`
-- E2E tests: `pnpm test:e2e`
+設計文件與任務清單在 `specs/001-trello-lite-board/`。

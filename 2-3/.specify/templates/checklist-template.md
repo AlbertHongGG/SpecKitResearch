@@ -20,13 +20,37 @@
   ============================================================================
 -->
 
-## [Category 1]
+## Correctness & Data Consistency
 
 - [ ] CHK001 First checklist item with clear action
 - [ ] CHK002 Second checklist item
 - [ ] CHK003 Third checklist item
 
-## [Category 2]
+## Contracts, API & Error Semantics
+
+- [ ] CHK004 Request/response schema is defined and reviewed
+- [ ] CHK005 Error codes/messages are consistent and actionable
+- [ ] CHK006 No hidden side effects in API behavior
+
+## Testing & Verification
+
+- [ ] CHK007 Core business rules have tests (happy path, edge cases, failures)
+- [ ] CHK008 Failure-path recovery/rollback is verified
+
+## Observability & Debuggability
+
+- [ ] CHK009 Logs capture failures with sufficient context
+- [ ] CHK010 Request/trace id is propagated end-to-end
+
+## Security & Permissions
+
+- [ ] CHK011 Server-side authn/authz is enforced
+- [ ] CHK012 Sensitive data is not exposed in UI/API responses
+
+## Performance, Scale & Compatibility
+
+- [ ] CHK013 Performance risks are identified (blocking IO, complexity)
+- [ ] CHK014 Backward compatibility + migration/rollback plan exists (if applicable)
 
 - [ ] CHK004 Another category item
 - [ ] CHK005 Item with specific criteria

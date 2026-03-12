@@ -22,6 +22,15 @@
 7. `npm run -w backend dev`
 8. `npm run -w frontend dev`
 
+## 本機預設網址
+- 前端：`http://localhost:5174`
+- 後端 API：`http://localhost:4000/api/v1`
+
+## 測試帳號（seed）
+- Platform Admin：`platform-admin@example.com` / `Password123!`
+- Org Admin：`org-admin@example.com` / `Password123!`
+- End User：`end-user@example.com` / `Password123!`
+
 ## 測試
 - `npm run test`
 - `npm run test:e2e`

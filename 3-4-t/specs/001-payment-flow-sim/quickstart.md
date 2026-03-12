@@ -33,7 +33,7 @@
 本 repo 已內建 receiver：
 
 - 啟動：`npm run dev:receiver`
-- 預設位址：`http://localhost:4000`
+- 預設位址：`http://localhost:4001`
 - 端點：
   - `GET/POST /callback`：用來觀察 return URL 導向 / 表單 POST
   - `POST /webhook`：預留給 US2（Webhook）
@@ -85,8 +85,8 @@ seed 預設帳密：
 
 - `amount`: 100
 - `currency`: "TWD"
-- `callback_url`: "http://localhost:4000/callback"
-- `webhook_url`: "http://localhost:4000/webhook"（US2 尚未實作，可先填 null）
+- `callback_url`: "http://localhost:4001/callback"
+- `webhook_url`: "http://localhost:4001/webhook"（US2 尚未實作，可先填 null）
 - `payment_method_code`: "card"
 - `simulation_scenario_type`: "success"
 - `delay_sec`: 0

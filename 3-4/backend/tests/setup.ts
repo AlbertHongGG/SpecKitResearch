@@ -111,7 +111,7 @@ const dbPath = await ensureTestDb();
 process.env.DATABASE_URL = `file:${dbPath}`;
 process.env.RUN_WEBHOOK_WORKER = 'false';
 process.env.COOKIE_SECURE = 'false';
-process.env.CORS_ORIGINS = 'http://localhost:5173';
+process.env.CORS_ORIGINS = 'http://localhost:5173,http://localhost:5174';
 process.env.SESSION_COOKIE_NAME = 'paysim_session';
 process.env.CSRF_COOKIE_NAME = 'csrf_token';
 process.env.SECRET_ENCRYPTION_KEY_BASE64 = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';

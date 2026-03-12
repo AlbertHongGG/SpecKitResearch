@@ -13,4 +13,7 @@ export const ordersApi = {
   cancel(orderId: string) {
     return apiRequest(`/orders/${orderId}/cancel`, { method: 'POST' });
   },
+  deliver(orderId: string, subOrderId: string) {
+    return apiRequest(`/orders/${orderId}/suborders/${subOrderId}/deliver`, { method: 'POST' });
+  },
 };

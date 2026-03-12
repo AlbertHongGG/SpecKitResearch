@@ -15,6 +15,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Use a separate build directory so frontend-only and backend dev servers can run together.
+  distDir: frontendOnly ? ".next-frontend" : ".next",
   async rewrites() {
     if (!frontendOnly) return [];
 

@@ -1,10 +1,9 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SessionGuard } from '../../common/auth/session.guard.js';
 import type { RequestWithUser } from '../../common/auth/session.guard.js';
 import { CurrentUser } from '../../common/auth/current-user.decorator.js';
-import { OrgMemberGuard } from '../../common/guards/org-member.guard.js';
 
 @Controller('orgs')
 export class OrgsController {
@@ -30,21 +29,4 @@ export class OrgsController {
     };
   }
 
-  @Get(':orgId/projects')
-  @UseGuards(SessionGuard, OrgMemberGuard)
-  async listProjects(
-    @Param('orgId') orgId: string,
-    @CurrentUser() user: RequestWithUser['user'],
-  ) {
-    const projects = await this.prisma.project.findMany({
-      where: {
-        organizationId: orgId,
-        memberships: { some: { userId: user!.id } },
-      },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, key: true, name: true, type: true, status: true },
-    });
-
-    return { projects };
-  }
 }

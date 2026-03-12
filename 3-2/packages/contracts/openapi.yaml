@@ -24,6 +24,23 @@ components:
       type: apiKey
       in: cookie
       name: session
+  parameters:
+    Limit:
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+      description: Max items to return (default 50, max 100).
+    Cursor:
+      in: query
+      name: cursor
+      required: false
+      schema: { type: string }
+      description: Opaque pagination cursor.
   schemas:
     ErrorResponse:
       type: object
@@ -89,6 +106,72 @@ components:
         after: { type: object, nullable: true, additionalProperties: true }
         createdAt: { type: string, format: date-time }
 
+    OrgInvite:
+      type: object
+      required: [token, email, expiresAt]
+      properties:
+        token: { type: string }
+        email: { type: string, format: email }
+        expiresAt: { type: string, format: date-time }
+
+    NavItem:
+      type: object
+      required: [label, href]
+      properties:
+        label: { type: string }
+        href: { type: string }
+
+    WorkflowStatus:
+      type: object
+      required: [key, name, position]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        position: { type: integer }
+
+    WorkflowTransition:
+      type: object
+      required: [fromStatusKey, toStatusKey]
+      properties:
+        fromStatusKey: { type: string }
+        toStatusKey: { type: string }
+
+    Workflow:
+      type: object
+      required: [id, projectId, version, isActive, name, statuses, transitions]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        version: { type: integer }
+        isActive: { type: boolean }
+        name: { type: string }
+        statuses:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowStatus' }
+        transitions:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowTransition' }
+
+    IssueComment:
+      type: object
+      required: [id, body, authorUserId, createdAt]
+      properties:
+        id: { type: string }
+        body: { type: string }
+        authorUserId: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    Sprint:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [planned, active, closed] }
+        goal: { type: string, nullable: true }
+        startDate: { type: string, format: date, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+
 security:
   - cookieSession: []
 
@@ -139,6 +222,26 @@ paths:
                 properties:
                   ok: { type: boolean }
 
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current session user
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Not logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /auth/csrf:
     get:
       tags: [Auth]
@@ -185,6 +288,8 @@ paths:
           name: orgId
           required: true
           schema: { type: string }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Projects
@@ -197,6 +302,9 @@ paths:
                   projects:
                     type: array
                     items: { $ref: '#/components/schemas/ProjectSummary' }
+                  nextCursor:
+                    type: string
+                    nullable: true
         '404':
           description: Not a member / org not found (existence strategy)
           content:
@@ -243,6 +351,113 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /orgs/{orgId}/invites:
+    post:
+      tags: [Orgs]
+      summary: Create organization invite (Org Admin)
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite]
+                properties:
+                  invite: { $ref: '#/components/schemas/OrgInvite' }
+        '401':
+          description: Not logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / org not found (existence strategy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /invites/{token}/accept:
+    post:
+      tags: [Orgs]
+      security: []
+      summary: Accept invite token (may create account)
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName: { type: string }
+                password: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '404':
+          description: Invite not found/expired/used
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (email mismatch / missing password)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /nav:
+    get:
+      tags: [Platform, Orgs, Projects]
+      summary: Server-driven navigation model
+      responses:
+        '200':
+          description: Nav items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/NavItem' }
+        '401':
+          description: Not logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /projects/{projectId}/issues:
     get:
       tags: [Issues]
@@ -258,6 +473,8 @@ paths:
           schema:
             type: string
             enum: [created_at, updated_at]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Issues
@@ -270,6 +487,9 @@ paths:
                   issues:
                     type: array
                     items: { $ref: '#/components/schemas/IssueSummary' }
+                  nextCursor:
+                    type: string
+                    nullable: true
         '404':
           description: Not a member / project not found (existence strategy)
           content:
@@ -470,13 +690,15 @@ paths:
       summary: Query audit log by scope
       parameters:
         - in: query
-          name: scope
-          required: true
-          schema: { type: string, enum: [platform, org, project] }
-        - in: query
-          name: scopeId
+          name: orgId
           required: false
           schema: { type: string }
+        - in: query
+          name: projectId
+          required: false
+          schema: { type: string }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Audit events
@@ -489,8 +711,458 @@ paths:
                   events:
                     type: array
                     items: { $ref: '#/components/schemas/AuditEvent' }
+                  nextCursor:
+                    type: string
+                    nullable: true
         '403':
           description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /platform/orgs:
+    get:
+      tags: [Platform]
+      summary: List organizations (Platform Admin)
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [organizations]
+                properties:
+                  organizations:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrganizationSummary' }
+                  nextCursor:
+                    type: string
+                    nullable: true
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Platform]
+      summary: Create organization (Platform Admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, plan]
+              properties:
+                name: { type: string }
+                plan: { type: string, enum: [free, paid] }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orgId]
+                properties:
+                  orgId: { type: string }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /platform/orgs/{orgId}:
+    patch:
+      tags: [Platform]
+      summary: Update organization (Platform Admin)
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                plan: { type: string, enum: [free, paid] }
+                status: { type: string, enum: [active, suspended] }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /orgs/{orgId}/members:
+    get:
+      tags: [Orgs]
+      summary: List org members (Org Admin)
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [members]
+                properties:
+                  members:
+                    type: array
+                    items:
+                      type: object
+                      required: [userId, email, displayName, orgRole]
+                      properties:
+                        userId: { type: string }
+                        email: { type: string, format: email }
+                        displayName: { type: string }
+                        orgRole: { type: string, enum: [org_admin, org_member] }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / org not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/workflows:
+    get:
+      tags: [Workflows]
+      summary: Get active workflow
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Workflow
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow]
+                properties:
+                  workflow: { $ref: '#/components/schemas/Workflow' }
+        '404':
+          description: Not a member / project not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Workflows]
+      summary: Create new workflow version (Project Manager)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, statuses, transitions]
+              properties:
+                name: { type: string }
+                statuses:
+                  type: array
+                  items: { $ref: '#/components/schemas/WorkflowStatus' }
+                transitions:
+                  type: array
+                  items: { $ref: '#/components/schemas/WorkflowTransition' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflowId]
+                properties:
+                  workflowId: { type: string }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / project not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/issues/{issueKey}/comments:
+    get:
+      tags: [Issues]
+      summary: List issue comments
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: issueKey
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [comments]
+                properties:
+                  comments:
+                    type: array
+                    items: { $ref: '#/components/schemas/IssueComment' }
+                  nextCursor:
+                    type: string
+                    nullable: true
+        '404':
+          description: Not a member / issue not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Issues]
+      summary: Create comment
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: issueKey
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [commentId]
+                properties:
+                  commentId: { type: string }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / issue not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/sprints:
+    get:
+      tags: [Sprints]
+      summary: List sprints
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Sprints
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sprints]
+                properties:
+                  sprints:
+                    type: array
+                    items: { $ref: '#/components/schemas/Sprint' }
+        '404':
+          description: Not a member / project not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Sprints]
+      summary: Create sprint (Project Manager)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                goal: { type: string, nullable: true }
+                startDate: { type: string, format: date, nullable: true }
+                endDate: { type: string, format: date, nullable: true }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sprintId]
+                properties:
+                  sprintId: { type: string }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / project not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/sprints/{sprintId}/start:
+    post:
+      tags: [Sprints]
+      summary: Start sprint (planned→active)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sprintId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / sprint not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/sprints/{sprintId}/close:
+    post:
+      tags: [Sprints]
+      summary: Close sprint (active→closed)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: sprintId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Closed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not a member / sprint not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /projects/{projectId}/backlog:
+    get:
+      tags: [Sprints, Issues]
+      summary: List backlog issues (no sprint)
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Backlog issues
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [issues]
+                properties:
+                  issues:
+                    type: array
+                    items: { $ref: '#/components/schemas/IssueSummary' }
+                  nextCursor:
+                    type: string
+                    nullable: true
+        '404':
+          description: Not a member / project not found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }

@@ -40,4 +40,13 @@ export class OrdersController {
     const { id } = orderIdParamSchema.parse(rawParams);
     return this.ordersService.cancelBeforePayment(user, id);
   }
+
+  @Post(':id/suborders/:subOrderId/deliver')
+  async deliver(
+    @CurrentUser() user: CurrentUserType | undefined,
+    @Param() rawParams: unknown,
+  ) {
+    const { id, subOrderId } = subOrderParamsSchema.parse(rawParams);
+    return this.ordersService.confirmDelivered(user, id, subOrderId);
+  }
 }

@@ -16,8 +16,9 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpErrorFilter());
 
   const env = Env.load();
+  const allowedOrigins = Array.from(new Set([...env.appOrigins, 'http://localhost:5174']));
   app.enableCors({
-    origin: env.appOrigin,
+    origin: allowedOrigins,
     credentials: true,
   });
 

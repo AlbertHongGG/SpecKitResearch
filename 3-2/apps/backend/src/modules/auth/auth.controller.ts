@@ -23,6 +23,7 @@ import { ErrorCodes } from '../../common/errors/error-codes.js';
 import { SessionService } from './session.service.js';
 import { SessionGuard } from '../../common/auth/session.guard.js';
 import { CurrentUser } from '../../common/auth/current-user.decorator.js';
+import { RateLimitGuard } from '../../common/security/rate-limit.guard.js';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -37,6 +38,7 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  @UseGuards(RateLimitGuard)
   async login(
     @Body(new ZodValidationPipe(loginSchema)) body: z.infer<typeof loginSchema>,
     @Res({ passthrough: true }) res: Response,
@@ -86,6 +88,13 @@ export class AuthController {
   @Get('me')
   @UseGuards(SessionGuard)
   me(@CurrentUser() user: any) {
-    return { user: { id: user.id, email: user.email, displayName: user.displayName } };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        platformRole: user.platformRole ?? null,
+      },
+    };
   }
 }
