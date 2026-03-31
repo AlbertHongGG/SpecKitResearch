@@ -1,0 +1,27 @@
+{
+  "name": "speckitresearch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "complexity-metrics-ast.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlbertHongGG/SpecKitResearch.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/AlbertHongGG/SpecKitResearch/issues"
+  },
+  "homepage": "https://github.com/AlbertHongGG/SpecKitResearch#readme",
+  "devDependencies": {
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-sonarjs": "^2.0.4",
+    "typescript": "^5.5.4"
+  }
+}

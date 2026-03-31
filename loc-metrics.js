@@ -173,7 +173,6 @@ async function main() {
   }
 
   const results = [];
-  let grand = { files: 0, total: 0, code: 0, comment: 0, blank: 0 };
 
   for (const project of projects) {
     const projectPath = path.join(ROOT, project);
@@ -183,11 +182,6 @@ async function main() {
 
     const metrics = await collectProjectMetrics(projectPath);
     results.push({ project, ...metrics });
-    grand.files += metrics.files;
-    grand.total += metrics.total;
-    grand.code += metrics.code;
-    grand.comment += metrics.comment;
-    grand.blank += metrics.blank;
   }
 
   if (OUTPUT_JSON) {
@@ -236,18 +230,6 @@ async function main() {
   }
 
   console.log("-".repeat(90));
-  const grandCodePct = grand.total ? ((grand.code / grand.total) * 100).toFixed(1) : "0.0";
-  console.log(
-    [
-      "TOTAL".padEnd(8),
-      formatNumber(grand.files).padStart(8),
-      formatNumber(grand.total).padStart(10),
-      formatNumber(grand.code).padStart(10),
-      formatNumber(grand.comment).padStart(10),
-      formatNumber(grand.blank).padStart(10),
-      `${grandCodePct}%`.padStart(9),
-    ].join(" ")
-  );
 }
 
 main().catch((error) => {

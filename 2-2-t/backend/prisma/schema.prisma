@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum UserRole {
+  USER
+  PROVIDER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TimeSlotStatus {
+  OPEN
+  CLOSED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id           String              @id @default(uuid())
+  email        String              @unique
+  passwordHash String
+  role         UserRole
+  status       UserStatus          @default(ACTIVE)
+  createdAt    DateTime            @default(now())
+
+  services     Service[]           @relation("ProviderServices")
+  bookings     Booking[]           @relation("UserBookings")
+  resetTokens  PasswordResetToken[]
+  auditLogs    AuditLog[]
+}
+
+model Service {
+  id              String        @id @default(uuid())
+  providerId      String
+  name            String
+  description     String
+  durationMinutes Int
+  status          ServiceStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+
+  provider  User       @relation("ProviderServices", fields: [providerId], references: [id])
+  timeSlots TimeSlot[]
+
+  @@index([providerId])
+}
+
+model TimeSlot {
+  id               String         @id @default(uuid())
+  serviceId         String
+  startTime         DateTime
+  endTime           DateTime
+  capacity          Int
+  bookedCount       Int            @default(0)
+  status            TimeSlotStatus @default(OPEN)
+  cancelDeadlineAt  DateTime
+
+  service  Service   @relation(fields: [serviceId], references: [id])
+  bookings Booking[]
+
+  @@index([serviceId])
+  @@index([startTime, endTime])
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  userId      String
+  timeSlotId  String
+  status      BookingStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  cancelledAt DateTime?
+  completedAt DateTime?
+
+  user     User     @relation("UserBookings", fields: [userId], references: [id])
+  timeSlot TimeSlot @relation(fields: [timeSlotId], references: [id])
+
+  @@unique([userId, timeSlotId])
+  @@index([timeSlotId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String
+  beforeData  Json?
+  afterData   Json?
+  requestId   String?
+  createdAt   DateTime @default(now())
+
+  actor User @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId])
+  @@index([targetType, targetId])
+}

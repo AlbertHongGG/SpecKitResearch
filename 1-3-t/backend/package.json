@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "db:seed": "prisma db seed"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

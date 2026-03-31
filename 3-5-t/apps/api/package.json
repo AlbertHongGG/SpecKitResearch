@@ -10,8 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prisma": "prisma",
-    "db:generate": "prisma generate && node scripts/ensure-prisma-links.mjs",
-    "db:migrate": "prisma migrate dev --name init",
+    "prisma:generate": "prisma generate && node scripts/ensure-prisma-links.mjs",
+    "prisma:migrate": "prisma migrate dev --name init",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "tsx prisma/seed.ts"
   },
