@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 5174",
+    "dev": "next dev -p 5178",
     "build": "next build",
-    "start": "next start -p 5174",
+    "start": "next start -p 5178",
     "test": "vitest run",
     "e2e": "playwright test",
     "lint": "eslint .",

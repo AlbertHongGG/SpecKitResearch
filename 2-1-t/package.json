@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 4000",
+    "dev": "next dev -p 5173",
     "build": "next build",
-    "start": "next start -p 4000",
+    "start": "next start -p 5173",
     "lint": "next lint",
     "format": "prettier --write .",
     "test": "vitest run",

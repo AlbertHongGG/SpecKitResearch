@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5174",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test -c tests/e2e/playwright.config.ts --pass-with-no-tests",
-    "preview": "vite preview"
+    "preview": "vite preview --port 5174"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
