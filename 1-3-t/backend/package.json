@@ -4,9 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:cov": "cross-env COVERAGE_RUNTIME=1 c8 --temp-directory .c8_output --reporter none tsx src/main.ts",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:cov": "vitest run --coverage",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -25,6 +29,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.17.14",
+    "@vitest/coverage-v8": "^2.1.9",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",

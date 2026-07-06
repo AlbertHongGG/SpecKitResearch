@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MEMBER
+  ADMIN
+}
+
+enum ActivityStatus {
+  DRAFT
+  PUBLISHED
+  FULL
+  CLOSED
+  ARCHIVED
+}
+
+enum AuditAction {
+  ACTIVITY_CREATE
+  ACTIVITY_UPDATE
+  ACTIVITY_STATUS_CHANGE
+  REGISTRATION_CREATE
+  REGISTRATION_CANCEL
+  REGISTRATIONS_EXPORT
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         UserRole
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  activitiesCreated Activity[]     @relation("ActivityCreatedBy")
+  registrations     Registration[]
+  auditLogs         AuditLog[]
+  idempotency       IdempotencyRecord[]
+}
+
+model Activity {
+  id              String         @id @default(cuid())
+  title           String
+  description     String
+  date            DateTime
+  location        String
+  deadline        DateTime
+  capacity        Int
+  status          ActivityStatus
+  registeredCount Int            @default(0)
+  createdByUserId String?
+  createdByUser   User?          @relation("ActivityCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  registrations Registration[]
+
+  @@index([status, date])
+}
+
+model Registration {
+  id         String   @id @default(cuid())
+  userId     String
+  activityId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  canceledAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id])
+  activity Activity @relation(fields: [activityId], references: [id])
+
+  @@unique([userId, activityId])
+  @@index([activityId])
+  @@index([userId, canceledAt])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  actorUserId String?
+  action      AuditAction
+  targetType  String
+  targetId    String
+  summary     String
+  createdAt   DateTime    @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([targetType, targetId, createdAt])
+}
+
+model IdempotencyRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  scope       String
+  key         String
+  requestHash String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, scope, key])
+}

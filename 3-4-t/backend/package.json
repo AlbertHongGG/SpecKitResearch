@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:cov": "cross-env COVERAGE_RUNTIME=1 c8 --temp-directory .c8_output --reporter none tsx src/main.ts",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "worker:dev": "tsx watch src/worker/main.ts",
@@ -34,6 +37,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "prisma": "^6.4.1",
     "tsx": "^4.19.2",
     "vitest": "^2.1.9"

@@ -5,6 +5,9 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "ts-node --project tsconfig.json src/main.ts",
+    "dev:cov": "cross-env COVERAGE_RUNTIME=1 TS_NODE_TRANSPILE_ONLY=1 c8 --temp-directory .c8_output --reporter none node --enable-source-maps -r ts-node/register src/main.ts",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "lint": "eslint .",
@@ -48,6 +51,8 @@
     "prettier": "^3.8.1",
     "prisma": "^7.4.2",
     "supertest": "^7.2.2",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

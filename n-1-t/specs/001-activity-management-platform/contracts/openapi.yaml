@@ -1,0 +1,504 @@
+openapi: 3.0.3
+info:
+  title: Activity Management Platform API
+  version: 0.1.0
+  description: |
+    社團活動管理平台 REST API 契約。
+
+    - Auth 使用 JWT（以 HttpOnly cookie 承載）
+    - 角色：Guest / Member / Admin
+servers:
+  - url: http://localhost:3000
+
+tags:
+  - name: Auth
+  - name: Public
+  - name: Member
+  - name: Admin
+
+paths:
+  /activities:
+    get:
+      tags: [Public]
+      summary: List public activities
+      description: Returns activities visible to public users (published/full).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivitySummary'
+
+  /activities/{activityId}:
+    get:
+      tags: [Public]
+      summary: Get public activity detail
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetail'
+        '404':
+          description: Not found (not visible or does not exist)
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register (Member only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registered and logged in
+          headers:
+            Set-Cookie:
+              description: Sets auth cookie
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMe'
+        '400':
+          description: Validation error
+        '409':
+          description: Email already exists
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            Set-Cookie:
+              description: Sets auth cookie
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMe'
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Logged out
+          headers:
+            Set-Cookie:
+              description: Clears auth cookie
+              schema: { type: string }
+
+  /me:
+    get:
+      tags: [Auth]
+      summary: Get current user identity
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMe'
+        '401':
+          description: Not logged in
+
+  /activities/{activityId}/registrations:
+    post:
+      tags: [Member]
+      summary: Register for an activity
+      description: |
+        Member registers for an activity when it is registerable.
+        Re-sending the same action must not create duplicate effective registrations.
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdempotencyKeyBody'
+      responses:
+        '200':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResult'
+        '400':
+          description: Not registerable
+        '401':
+          description: Not logged in
+        '404':
+          description: Not found (not visible or does not exist)
+
+    delete:
+      tags: [Member]
+      summary: Cancel registration for an activity
+      description: |
+        Member cancels their effective registration when cancelable.
+        Re-sending the same action must not create duplicate side effects.
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdempotencyKeyBody'
+      responses:
+        '200':
+          description: Canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResult'
+        '400':
+          description: Not cancelable
+        '401':
+          description: Not logged in
+        '404':
+          description: Not found (not visible or does not exist)
+
+  /my-activities:
+    get:
+      tags: [Member]
+      summary: List my registered activities
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivitySummary'
+        '401':
+          description: Not logged in
+
+  /admin/activities:
+    get:
+      tags: [Admin]
+      summary: List all activities (admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivityDetail'
+        '401':
+          description: Not logged in
+        '403':
+          description: Forbidden (not admin)
+
+    post:
+      tags: [Admin]
+      summary: Create activity (admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertActivityRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetail'
+        '400':
+          description: Validation error
+        '401':
+          description: Not logged in
+        '403':
+          description: Forbidden (not admin)
+
+  /admin/activities/{activityId}:
+    put:
+      tags: [Admin]
+      summary: Update activity (admin)
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertActivityRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetail'
+        '400':
+          description: Validation error
+        '401':
+          description: Not logged in
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Not found
+
+  /admin/activities/{activityId}/status:
+    post:
+      tags: [Admin]
+      summary: Change activity status (admin)
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminChangeStatusRequest'
+      responses:
+        '200':
+          description: Status changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetail'
+        '400':
+          description: Invalid transition
+        '401':
+          description: Not logged in
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Not found
+
+  /admin/activities/{activityId}/registrations:
+    get:
+      tags: [Admin]
+      summary: List registrations for an activity (admin)
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminRegistrationRow'
+        '401':
+          description: Not logged in
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Not found
+
+  /admin/activities/{activityId}/registrations/export:
+    post:
+      tags: [Admin]
+      summary: Export registrations CSV (admin)
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: activityId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdempotencyKeyBody'
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Not logged in
+        '403':
+          description: Forbidden (not admin)
+        '404':
+          description: Not found
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+    ActivityStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, FULL, CLOSED, ARCHIVED]
+
+    ActivitySummary:
+      type: object
+      required: [id, title, date, location, status, registeredCount, capacity]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        date: { type: string, format: date-time }
+        location: { type: string }
+        status: { $ref: '#/components/schemas/ActivityStatus' }
+        registeredCount: { type: integer, minimum: 0 }
+        capacity: { type: integer, minimum: 1 }
+
+    ActivityDetail:
+      allOf:
+        - $ref: '#/components/schemas/ActivitySummary'
+        - type: object
+          required: [description, deadline]
+          properties:
+            description: { type: string }
+            deadline: { type: string, format: date-time }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        name: { type: string, minLength: 1 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    AuthMe:
+      type: object
+      required: [id, email, name, role]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        role:
+          type: string
+          enum: [member, admin]
+
+    IdempotencyKeyBody:
+      type: object
+      description: Optional idempotency key for retry safety.
+      properties:
+        idempotencyKey:
+          type: string
+          minLength: 1
+
+    RegistrationResult:
+      type: object
+      required: [activityId, registered, registeredCount, status]
+      properties:
+        activityId: { type: string }
+        registered: { type: boolean }
+        registeredCount: { type: integer, minimum: 0 }
+        status: { $ref: '#/components/schemas/ActivityStatus' }
+
+    AdminUpsertActivityRequest:
+      type: object
+      required: [title, description, date, location, deadline, capacity]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        date: { type: string, format: date-time }
+        location: { type: string }
+        deadline: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 1 }
+
+    AdminChangeStatusRequest:
+      type: object
+      required: [toStatus]
+      properties:
+        toStatus:
+          $ref: '#/components/schemas/ActivityStatus'
+
+    AdminRegistrationRow:
+      type: object
+      required: [name, email, registeredAt]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        registeredAt: { type: string, format: date-time }

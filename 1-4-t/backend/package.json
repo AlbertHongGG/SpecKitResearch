@@ -8,6 +8,9 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
+    "dev:cov": "cross-env COVERAGE_RUNTIME=1 TS_NODE_TRANSPILE_ONLY=1 c8 --temp-directory .c8_output --reporter none node --enable-source-maps -r ts-node/register src/main.ts",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:prod": "node dist/main",
@@ -46,6 +49,8 @@
     "@types/supertest": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "eslint": "^8.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",

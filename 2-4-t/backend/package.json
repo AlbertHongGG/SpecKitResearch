@@ -4,6 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:cov": "cross-env COVERAGE_RUNTIME=1 c8 --temp-directory .c8_output --reporter none tsx src/main.ts",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "build": "tsup",
     "start": "node --enable-source-maps dist/main.js",
     "test": "jest",
@@ -34,6 +37,8 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.1",
     "@types/supertest": "^6.0.3",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "jest": "^29.7.0",
     "prisma": "^6.4.1",
     "supertest": "^7.0.0",

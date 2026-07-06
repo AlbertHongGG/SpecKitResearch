@@ -12,6 +12,21 @@ import { createLogger } from './common/logging/logger';
 import { registerRequestIdHook } from './common/http/request-id.middleware';
 import { HttpExceptionFilter } from './common/http/http-exception.filter';
 
+const coverageRuntimeEnabled = process.env.COVERAGE_RUNTIME === '1';
+
+function isLocalAddress(ip: string | undefined) {
+  return !ip || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
+async function takeCoverageSnapshot() {
+  try {
+    const v8 = await import('node:v8');
+    v8.takeCoverage();
+  } catch {
+    // Ignore environments where V8 coverage is unavailable.
+  }
+}
+
 async function bootstrap() {
   const config = getConfig(process.env);
   const logger = createLogger(config);
@@ -75,6 +90,24 @@ async function bootstrap() {
   await app.register(fastifyReplyFrom as any, {
     // reply.from is used by gateway proxy
   });
+
+  if (coverageRuntimeEnabled) {
+    const server = app.getHttpAdapter().getInstance();
+
+    server.post('/__coverage/shutdown', async (request: { ip?: string }, reply: { code: (statusCode: number) => { send: (body: unknown) => void } }) => {
+      if (!isLocalAddress(request.ip)) {
+        return reply.code(403).send({ status: 'forbidden' });
+      }
+
+      reply.code(202).send({ status: 'accepted', mode: 'runtime', saved: false });
+
+      setImmediate(async () => {
+        await takeCoverageSnapshot();
+        await app.close();
+        process.exit(0);
+      });
+    });
+  }
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
   logger.info({ port: config.port }, 'backend listening');

@@ -1,0 +1,34 @@
+# Node / TypeScript
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Env files
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# Prisma / SQLite
+*.db
+*.db-journal
+
+# Vite
+.vite/
+
+# Nest
+.nest/
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

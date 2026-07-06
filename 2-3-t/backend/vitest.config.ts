@@ -19,5 +19,13 @@ export default defineConfig({
     pool: 'forks',
     testTimeout: 30_000,
     setupFiles: ['test/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['html', 'json-summary', 'text-summary'],
+      reportsDirectory: 'coverage/test',
+      include: ['src/**/*.ts'],
+      exclude: ['test/**/*.ts', 'dist/**'],
+    },
   },
 });
+

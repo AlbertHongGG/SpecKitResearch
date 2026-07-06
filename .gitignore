@@ -66,3 +66,5 @@ lerna-debug.log*
 
 # Backup of nested repos' .git directories (created by Copilot)
 .subrepo_git_backup/
+.playwright-mcp/
+.c8_output/

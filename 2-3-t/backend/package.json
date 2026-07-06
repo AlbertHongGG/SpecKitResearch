@@ -4,6 +4,9 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node scripts/dev.js",
+    "dev:cov": "pnpm run build && cross-env COVERAGE_RUNTIME=1 c8 --temp-directory .c8_output --reporter none node --enable-source-maps dist/main.js",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json -w --preserveWatchOutput",
     "start": "node dist/main.js",
@@ -12,6 +15,7 @@
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "test": "vitest run",
+    "test:cov": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier -w ."
@@ -39,6 +43,9 @@
     "@types/supertest": "^7.2.0",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "eslint": "^9.35.0",
     "prettier": "^3.6.2",
     "prisma": "^6.16.1",

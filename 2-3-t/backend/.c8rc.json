@@ -1,0 +1,5 @@
+{
+  "all": true,
+  "include": ["dist/**/*.js"],
+  "exclude": ["dist/**/*.d.ts", "dist/**/*.map", "test/**/*.ts", "**/*.test.ts", "**/*.spec.ts"]
+}

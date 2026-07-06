@@ -8,6 +8,9 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
+    "dev:cov": "cross-env COVERAGE_RUNTIME=1 TS_NODE_TRANSPILE_ONLY=1 c8 --temp-directory .c8_output --reporter none node --enable-source-maps -r ts-node/register src/main.ts",
+    "cov:clean": "node ../../scripts/coverage/clean.mjs",
+    "cov:report": "node ../../scripts/coverage/report.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
@@ -54,6 +57,8 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
+    "c8": "^10.1.3",
+    "cross-env": "^7.0.3",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
